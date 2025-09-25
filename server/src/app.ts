@@ -8,6 +8,7 @@ import * as dotenv from 'dotenv';
 dotenv.config();
 
 import authRoutes from './routes/auth';
+import agentRoutes from './routes/agent';
 import { errorHandler } from './middleware/errorHandler';
 import { ApiResponse } from './types';
 
@@ -52,8 +53,9 @@ app.get('/health', (req: Request, res: Response) => {
 
 // Routes
 app.use('/api/auth', authRoutes);
+app.use('/api/agent', agentRoutes);
 
-// Error handling middleware (should be last)
+// Error handling middleware 
 app.use(errorHandler);
 
 // Handle 404

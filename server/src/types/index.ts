@@ -46,3 +46,46 @@ export interface ValidationError {
   field: string;
   message: string;
 }
+
+// Chat and Agent Types
+export interface Conversation {
+  conversationId: string;
+  userId: number;
+  title: string;
+  createdAt: Date;
+  lastMessageAt: Date;
+}
+
+export interface Message {
+  messageId: string;
+  conversationId: string;
+  ts: Date;
+  role: 'user' | 'assistant' | 'tool';
+  agent?: string;
+  content: string;
+  status: 'complete' | 'interrupted' | 'error';
+}
+
+export interface LlmUsage {
+  inputTokens: number | null;
+  outputTokens: number | null;
+}
+
+export interface StreamEvents {
+  meta: {
+    conversationId: string;
+    agent: string;
+    userMessageId: string;
+    assistantMessageId: string;
+  };
+  chunk: {
+    delta: string;
+  };
+  done: {
+    usage: LlmUsage;
+    durationMs: number;
+  };
+  error: {
+    message: string;
+  };
+}
