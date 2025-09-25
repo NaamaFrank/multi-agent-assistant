@@ -8,10 +8,8 @@ export const registerValidation: ValidationChain[] = [
     .normalizeEmail()
     .withMessage('Please provide a valid email'),
   body('password')
-    .isLength({ min: 8 })
-    .withMessage('Password must be at least 8 characters long')
-    .matches(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]/)
-    .withMessage('Password must contain at least one uppercase letter, one lowercase letter, one number, and one special character'),
+    .isLength({ min: 3 })
+    .withMessage('Password must be at least 3 characters long'),
   body('firstName')
     .trim()
     .isLength({ min: 2, max: 50 })

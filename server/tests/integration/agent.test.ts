@@ -1,7 +1,6 @@
 import request from 'supertest';
 import app from '../../src/app';
 import authService from '../../src/services/authService';
-import UserStorage from '../../src/models/UserStorage';
 
 describe('Agent Streaming Integration Tests', () => {
   let authToken: string;
@@ -21,7 +20,7 @@ describe('Agent Streaming Integration Tests', () => {
 
   afterAll(async () => {
     // Clean up
-    UserStorage.clear();
+    authService.clearUsers();
   });
 
   describe('GET /api/agent/stream', () => {

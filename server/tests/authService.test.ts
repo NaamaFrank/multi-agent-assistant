@@ -1,10 +1,12 @@
-import authService from '../src/services/authService';
-import userStorage from '../src/models/UserStorage';
+import { AuthService } from '../src/services/authService';
+import { MemoryUserRepo } from '../src/repositories/UserRepo';
 
 describe('AuthService', () => {
+  let authService: AuthService;
+
   beforeEach(() => {
-    // Clear users before each test
-    (userStorage as any).clear();
+    // Create a fresh AuthService with a new repository for each test
+    authService = new AuthService(new MemoryUserRepo());
   });
 
   describe('register', () => {

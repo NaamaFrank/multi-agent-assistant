@@ -39,6 +39,7 @@ router.get('/stream',
     let assistantMessageId = '';
     let userMessageId = '';
     let finalConversationId = conversationId || '';
+    let isCompleted = false; // Track if streaming completed successfully
     
     const abortController = new AbortController();
     const heartbeatMs = parseInt(process.env.STREAM_HEARTBEAT_MS || '15000');
@@ -84,7 +85,8 @@ router.get('/stream',
     // Handle client disconnect
     req.on('close', async () => {
       abortController.abort();
-      if (assistantMessageId) {
+      // Only mark as interrupted if streaming didn't complete successfully
+      if (assistantMessageId && !isCompleted) {
         await chatService.updateAssistantMessage(assistantMessageId, '', 'interrupted');
       }
       cleanup();
@@ -140,6 +142,7 @@ router.get('/stream',
         // Update assistant message with full response
         await chatService.updateAssistantMessage(assistantMessageId, fullResponse, 'complete');
         await chatService.updateConversationLastMessageAt(finalConversationId);
+        isCompleted = true; // Mark as completed before cleanup
         
         // Emit done event
         const durationMs = Date.now() - startTime;
@@ -167,7 +170,7 @@ router.get('/stream',
   }
 );
 
-// Non-stream endpoints for future UI
+// Non-stream endpoints for UI
 router.post('/conversations', auth, async (req: Request, res: Response) => {
   try {
     const userId = req.user!.userId;
@@ -175,16 +178,39 @@ router.post('/conversations', auth, async (req: Request, res: Response) => {
     
     const response: ApiResponse<{ conversationId: string }> = {
       success: true,
-      message: 'Conversation created',
+      message: 'Conversation ensured', 
       data: { conversationId: conversation.conversationId }
     };
     
     res.json(response);
   } catch (error) {
-    console.error('Create conversation error:', error);
+    console.error('Ensure conversation error:', error);
     const response: ApiResponse = {
       success: false,
-      message: 'Failed to create conversation'
+      message: 'Failed to ensure conversation'
+    };
+    res.status(500).json(response);
+  }
+});
+
+// Get all conversations for current user
+router.get('/conversations', auth, async (req: Request, res: Response) => {
+  try {
+    const userId = req.user!.userId;
+    const conversations = await chatService.getUserConversations(userId);
+    
+    const response: ApiResponse<any[]> = {
+      success: true,
+      message: 'Conversations retrieved',
+      data: conversations
+    };
+    
+    res.json(response);
+  } catch (error) {
+    console.error('Get conversations error:', error);
+    const response: ApiResponse = {
+      success: false,
+      message: 'Failed to get conversations'
     };
     res.status(500).json(response);
   }

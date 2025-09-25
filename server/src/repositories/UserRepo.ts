@@ -1,8 +1,16 @@
 import { User, CreateUserData } from '../types';
 
-// Simple in-memory user storage
-// In production, this would be replaced with DynamoDB or another database
-class UserStorage {
+export interface UserRepo {
+  findByEmail(email: string): Promise<User | null>;
+  findById(id: number): Promise<User | null>;
+  create(userData: CreateUserData): Promise<User>;
+  update(id: number, updates: Partial<Omit<User, 'id' | 'createdAt'>>): Promise<User | null>;
+  delete(id: number): Promise<boolean>;
+  getAllUsers(): Promise<User[]>;
+  exists(email: string): Promise<boolean>;
+}
+
+export class MemoryUserRepo implements UserRepo {
   private users: Map<number, User> = new Map();
   private nextId: number = 1;
 
@@ -65,8 +73,3 @@ class UserStorage {
     this.nextId = 1;
   }
 }
-
-// Create a singleton instance
-const userStorage = new UserStorage();
-
-export default userStorage;

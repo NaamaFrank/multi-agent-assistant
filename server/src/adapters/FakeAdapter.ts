@@ -29,23 +29,25 @@ export class FakeAdapter implements LlmAdapter {
   private generateFakeResponse(prompt: string): string {
     const lowercasePrompt = prompt.toLowerCase();
     
-    // Basic refusals for unsafe content
-    const unsafePatterns = [
-      'hack', 'illegal', 'harmful', 'dangerous', 'violence', 'weapon',
-      'drug', 'bomb', 'steal', 'fraud', 'scam'
-    ];
-    
-    if (unsafePatterns.some(pattern => lowercasePrompt.includes(pattern))) {
-      return "I can't help with requests that could be harmful or illegal. Is there something else I can assist you with?";
-    }
-    
-    // Generate contextual responses
-    if (lowercasePrompt.includes('hello') || lowercasePrompt.includes('hi')) {
+    // Generate contextual responses first (before checking unsafe patterns)
+    if (lowercasePrompt.includes('hello') || lowercasePrompt.includes('hi') || lowercasePrompt.includes('hey')) {
       return "Hello! I'm a helpful AI assistant. How can I help you today?";
     }
     
     if (lowercasePrompt.includes('weather')) {
       return "I don't have access to real-time weather data, but I'd recommend checking a weather service like Weather.com or your local weather app for current conditions.";
+    }
+    
+    // Basic refusals for unsafe content (use word boundaries to avoid false positives)
+    const unsafePatterns = [
+      '\\bhack\\b', '\\billegal\\b', '\\bharmful\\b', '\\bdangerous\\b', 
+      '\\bviolence\\b', '\\bweapon\\b', '\\bdrug\\b', '\\bbomb\\b', 
+      '\\bsteal\\b', '\\bfraud\\b', '\\bscam\\b'
+    ];
+    
+    const unsafeRegex = new RegExp(unsafePatterns.join('|'), 'i');
+    if (unsafeRegex.test(lowercasePrompt)) {
+      return "I can't help with requests that could be harmful or illegal. Is there something else I can assist you with?";
     }
     
     if (lowercasePrompt.includes('code') || lowercasePrompt.includes('program')) {

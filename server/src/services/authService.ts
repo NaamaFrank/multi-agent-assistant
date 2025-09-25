@@ -1,7 +1,7 @@
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import * as dotenv from 'dotenv';
-import userStorage from '../models/UserStorage';
+import { MemoryUserRepo, UserRepo } from '../repositories/UserRepo';
 import { AuthResult, UserWithoutPassword, JwtPayload } from '../types';
 
 // Ensure environment variables are loaded
@@ -11,11 +11,13 @@ class AuthService {
   private saltRounds: number;
   private jwtSecret: string;
   private jwtExpiresIn: string;
+  private userRepo: UserRepo;
 
-  constructor() {
+  constructor(userRepo?: UserRepo) {
     this.saltRounds = parseInt(process.env.BCRYPT_ROUNDS || '12');
     this.jwtSecret = process.env.JWT_SECRET || '';
     this.jwtExpiresIn = process.env.JWT_EXPIRES_IN || '24h';
+    this.userRepo = userRepo || new MemoryUserRepo();
 
     if (!this.jwtSecret) {
       console.error('JWT_SECRET environment variable is required');
@@ -52,7 +54,7 @@ class AuthService {
   ): Promise<AuthResult> {
     try {
       // Check if user already exists
-      const existingUser = await userStorage.findByEmail(email);
+      const existingUser = await this.userRepo.findByEmail(email);
       if (existingUser) {
         throw new Error('User already exists with this email');
       }
@@ -68,7 +70,7 @@ class AuthService {
         lastName
       };
 
-      const user = await userStorage.create(userData);
+      const user = await this.userRepo.create(userData);
 
       // Generate token
       const token = this.generateToken(user.id);
@@ -88,7 +90,7 @@ class AuthService {
   async login(email: string, password: string): Promise<AuthResult> {
     try {
       // Find user by email
-      const user = await userStorage.findByEmail(email);
+      const user = await this.userRepo.findByEmail(email);
       if (!user) {
         throw new Error('Invalid email or password');
       }
@@ -116,7 +118,7 @@ class AuthService {
 
   async getUserById(userId: number): Promise<UserWithoutPassword> {
     try {
-      const user = await userStorage.findById(userId);
+      const user = await this.userRepo.findById(userId);
       if (!user) {
         throw new Error('User not found');
       }
@@ -128,6 +130,15 @@ class AuthService {
       throw error;
     }
   }
+
+  // Method for testing: clear all users
+  clearUsers(): void {
+    if (this.userRepo instanceof MemoryUserRepo) {
+      (this.userRepo as MemoryUserRepo).clear();
+    }
+  }
 }
 
+// Export both the class and the default instance
+export { AuthService };
 export default new AuthService();

@@ -1,6 +1,6 @@
 import request from 'supertest';
 import app from '../src/app';
-import userStorage from '../src/models/UserStorage';
+import authService from '../src/services/authService';
 
 interface TestUser {
   email: string;
@@ -21,7 +21,7 @@ describe('Auth Endpoints', () => {
 
   beforeEach(() => {
     // Clear users before each test
-    (userStorage as any).clear();
+    authService.clearUsers();
   });
 
   describe('POST /api/auth/register', () => {
