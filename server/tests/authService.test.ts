@@ -1,12 +1,12 @@
-import { AuthService } from '../src/services/authService';
+import * as authService from '../src/services/authService';
 import { MemoryUserRepo } from '../src/repositories/UserRepo';
 
 describe('AuthService', () => {
-  let authService: AuthService;
+  let userRepo: MemoryUserRepo;
 
   beforeEach(() => {
-    // Create a fresh AuthService with a new repository for each test
-    authService = new AuthService(new MemoryUserRepo());
+    // Create a fresh repository for each test
+    userRepo = new MemoryUserRepo();
   });
 
   describe('register', () => {
@@ -22,7 +22,8 @@ describe('AuthService', () => {
         userData.email,
         userData.password,
         userData.firstName,
-        userData.lastName
+        userData.lastName,
+        userRepo
       );
 
       expect(result).toHaveProperty('user');
@@ -38,7 +39,8 @@ describe('AuthService', () => {
         userData.email,
         userData.password,
         userData.firstName,
-        userData.lastName
+        userData.lastName,
+        userRepo
       );
 
       // Try to register same user again
@@ -46,7 +48,8 @@ describe('AuthService', () => {
         userData.email,
         userData.password,
         userData.firstName,
-        userData.lastName
+        userData.lastName,
+        userRepo
       )).rejects.toThrow('User already exists with this email');
     });
   });
@@ -65,12 +68,13 @@ describe('AuthService', () => {
         userData.email,
         userData.password,
         userData.firstName,
-        userData.lastName
+        userData.lastName,
+        userRepo
       );
     });
 
     test('should login successfully with valid credentials', async () => {
-      const result = await authService.login(userData.email, userData.password);
+      const result = await authService.login(userData.email, userData.password, userRepo);
 
       expect(result).toHaveProperty('user');
       expect(result).toHaveProperty('token');
@@ -80,12 +84,12 @@ describe('AuthService', () => {
     });
 
     test('should throw error with invalid email', async () => {
-      await expect(authService.login('invalid@example.com', userData.password))
+      await expect(authService.login('invalid@example.com', userData.password, userRepo))
         .rejects.toThrow('Invalid email or password');
     });
 
     test('should throw error with invalid password', async () => {
-      await expect(authService.login(userData.email, 'wrongpassword'))
+      await expect(authService.login(userData.email, 'wrongpassword', userRepo))
         .rejects.toThrow('Invalid email or password');
     });
   });
@@ -96,10 +100,11 @@ describe('AuthService', () => {
         'test@example.com',
         'TestPass123!',
         'John',
-        'Doe'
+        'Doe',
+        userRepo
       );
 
-      const user = await authService.getUserById(registerResult.user.id);
+      const user = await authService.getUserById(registerResult.user.id, userRepo);
 
       expect(user).toHaveProperty('id');
       expect(user).toHaveProperty('email', 'test@example.com');
@@ -107,7 +112,7 @@ describe('AuthService', () => {
     });
 
     test('should throw error if user not found', async () => {
-      await expect(authService.getUserById(999))
+      await expect(authService.getUserById(999, userRepo))
         .rejects.toThrow('User not found');
     });
   });

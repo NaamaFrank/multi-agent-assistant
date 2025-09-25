@@ -1,114 +1,27 @@
-import express, { Request, Response } from 'express';
-import authService from '../services/authService';
+import express from 'express';
+import { register, login, getCurrentUser, verifyToken, logout } from '../controllers';
 import { auth } from '../middleware/auth';
 import { 
   registerValidation, 
   loginValidation, 
   validateRequest 
 } from '../middleware/validation';
-import { ApiResponse, AuthResult, UserWithoutPassword } from '../types';
 
 const router = express.Router();
 
-interface RegisterRequest extends Request {
-  body: {
-    email: string;
-    password: string;
-    firstName: string;
-    lastName: string;
-  };
-}
-
-interface LoginRequest extends Request {
-  body: {
-    email: string;
-    password: string;
-  };
-}
-
 // Register endpoint
-router.post('/register', registerValidation, validateRequest, async (req: RegisterRequest, res: Response) => {
-  try {
-    const { email, password, firstName, lastName } = req.body;
-    
-    const result: AuthResult = await authService.register(email, password, firstName, lastName);
-    
-    const response: ApiResponse<AuthResult> = {
-      success: true,
-      message: 'User registered successfully',
-      data: result
-    };
-    res.status(201).json(response);
-  } catch (error: any) {
-    const response: ApiResponse = {
-      success: false,
-      message: error.message
-    };
-    res.status(400).json(response);
-  }
-});
+router.post('/register', registerValidation, validateRequest, register);
 
 // Login endpoint
-router.post('/login', loginValidation, validateRequest, async (req: LoginRequest, res: Response) => {
-  try {
-    const { email, password } = req.body;
-    
-    const result: AuthResult = await authService.login(email, password);
-    
-    const response: ApiResponse<AuthResult> = {
-      success: true,
-      message: 'Login successful',
-      data: result
-    };
-    res.status(200).json(response);
-  } catch (error: any) {
-    const response: ApiResponse = {
-      success: false,
-      message: error.message
-    };
-    res.status(401).json(response);
-  }
-});
+router.post('/login', loginValidation, validateRequest, login);
 
 // Get current user (protected route)
-router.get('/me', auth, async (req: Request, res: Response) => {
-  try {
-    const user: UserWithoutPassword = await authService.getUserById(req.user!.userId);
-    
-    const response: ApiResponse<{ user: UserWithoutPassword }> = {
-      success: true,
-      message: 'User retrieved successfully',
-      data: { user }
-    };
-    res.status(200).json(response);
-  } catch (error: any) {
-    const response: ApiResponse = {
-      success: false,
-      message: error.message
-    };
-    res.status(404).json(response);
-  }
-});
+router.get('/me', auth, getCurrentUser);
 
 // Token validation endpoint
-router.post('/verify-token', auth, (req: Request, res: Response) => {
-  const response: ApiResponse<{ userId: number }> = {
-    success: true,
-    message: 'Token is valid',
-    data: {
-      userId: req.user!.userId
-    }
-  };
-  res.status(200).json(response);
-});
+router.post('/verify-token', auth, verifyToken);
 
 // Logout endpoint (client-side token removal)
-router.post('/logout', auth, (req: Request, res: Response) => {
-  const response: ApiResponse = {
-    success: true,
-    message: 'Logout successful. Please remove the token from client-side storage.'
-  };
-  res.status(200).json(response);
-});
+router.post('/logout', auth, logout);
 
 export default router;

@@ -229,16 +229,24 @@ Passwords must meet the following criteria:
 server/
 ├── src/
 │   ├── app.js                 # Main application file
+│   ├── controllers/           # 🆕 Controller layer - handles HTTP logic
+│   │   ├── AuthController.ts  # Authentication controller
+│   │   ├── AgentController.ts # Agent/chat controller
+│   │   └── index.ts          # Controller exports
 │   ├── middleware/
 │   │   ├── auth.js           # JWT authentication middleware
 │   │   ├── errorHandler.js   # Error handling middleware
 │   │   └── validation.js     # Input validation middleware
-│   ├── models/
-│   │   └── UserStorage.js    # In-memory user storage
-│   ├── routes/
-│   │   └── auth.js           # Authentication routes
+│   ├── repositories/          # 🆕 Repository pattern for data access
+│   │   ├── UserRepo.ts       # User repository interface & implementation
+│   │   ├── ConversationsRepo.ts # Conversations repository
+│   │   ├── MessagesRepo.ts   # Messages repository
+│   │   └── index.ts          # Repository exports
+│   ├── routes/               # 🔄 Thin routes - only routing & middleware
+│   │   ├── auth.ts           # Authentication routes (now controller-based)
+│   │   └── agent.ts          # Agent routes (now controller-based)
 │   └── services/
-│       └── authService.js    # Authentication business logic
+│       └── authService.ts    # Authentication business logic
 ├── tests/
 │   ├── auth.test.js          # Authentication endpoint tests
 │   ├── authService.test.js   # Auth service unit tests
@@ -248,6 +256,38 @@ server/
 ├── .gitignore
 └── README.md
 ```
+
+## Architecture
+
+The application follows a **layered architecture** with clear separation of concerns:
+
+### 🔄 Route Layer (`/routes`)
+- **Purpose**: Handle routing, middleware, and delegate to controllers
+- **Responsibilities**: URL routing, middleware application (auth, validation), minimal logic
+- **Example**: `router.post('/login', validation, auth, controller.login)`
+
+### 🆕 Controller Layer (`/controllers`)
+- **Purpose**: Handle HTTP-specific logic and coordinate services
+- **Responsibilities**: Request/response formatting, status codes, error handling, service coordination
+- **Benefits**: Testable business logic, consistent response formats, centralized error handling
+
+### 🔧 Service Layer (`/services`) 
+- **Purpose**: Core business logic and domain operations
+- **Responsibilities**: Authentication, business rules, data validation, complex operations
+- **Example**: Password hashing, JWT generation, user management
+
+### 🆕 Repository Layer (`/repositories`)
+- **Purpose**: Data access abstraction with consistent interface
+- **Responsibilities**: CRUD operations, data persistence, query logic
+- **Benefits**: Easy to test, database-agnostic, consistent data access patterns
+
+### Key Improvements
+
+1. **Separation of Concerns**: Each layer has a single responsibility
+2. **Testability**: Controllers and services can be unit tested independently  
+3. **Maintainability**: Business logic is centralized, not scattered in routes
+4. **Consistency**: Standardized error handling and response formats
+5. **Scalability**: Easy to add new features following the same patterns
 
 ## Testing
 

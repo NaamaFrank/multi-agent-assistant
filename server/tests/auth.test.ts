@@ -1,6 +1,6 @@
 import request from 'supertest';
 import app from '../src/app';
-import authService from '../src/services/authService';
+import * as authService from '../src/services/authService';
 
 interface TestUser {
   email: string;
