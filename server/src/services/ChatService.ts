@@ -109,7 +109,7 @@ export const getUserConversations = async (
   return conversationsRepo.listByUser(userId);
 };
 
-// Helper function (no longer private since we don't have classes)
+// Helper function
 const updateConversationTitle = async (
   conversationId: string, 
   userMessage: string,

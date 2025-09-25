@@ -4,7 +4,7 @@ import { GeneralAgent } from '../agents/GeneralAgent';
 import { createLlmAdapter } from '../adapters';
 import { ApiResponse } from '../types';
 
-// Initialize shared services (singleton pattern without classes)
+// Initialize shared services (using default repository instances from ChatService)
 const llmAdapter = createLlmAdapter();
 const generalAgent = new GeneralAgent(llmAdapter);
 
@@ -86,7 +86,7 @@ export const streamChat = async (req: Request, res: Response): Promise<void> => 
     heartbeatInterval = setInterval(sendHeartbeat, heartbeatMs);
     resetIdleTimeout();
 
-    // Create or get conversation
+    // Create or get conversation (using default repositories)
     const conversation = await chatService.ensureConversation(userId, conversationId);
     finalConversationId = conversation.conversationId;
 
