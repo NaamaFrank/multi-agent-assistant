@@ -1,5 +1,4 @@
-import { LlmAdapter } from './LlmAdapter';
-import { LlmUsage } from '../types';
+import { LlmAdapter, LlmUsage } from '../types';
 
 export class FakeAdapter implements LlmAdapter {
   async *generate(prompt: string, abortSignal?: AbortSignal): AsyncGenerator<string, LlmUsage> {

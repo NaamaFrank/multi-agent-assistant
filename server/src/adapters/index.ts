@@ -1,4 +1,4 @@
-import { LlmAdapter } from './LlmAdapter';
+import { LlmAdapter } from '../types';
 import { FakeAdapter } from './FakeAdapter';
 import { BedrockAdapter } from './BedrockAdapter';
 
@@ -9,10 +9,8 @@ export function createLlmAdapter(): LlmAdapter {
     return new FakeAdapter();
   }
   
-  // TODO: Return BedrockAdapter when ready
-  return new FakeAdapter();
+  return new BedrockAdapter();
 }
 
-export * from './LlmAdapter';
 export * from './FakeAdapter';
 export * from './BedrockAdapter';

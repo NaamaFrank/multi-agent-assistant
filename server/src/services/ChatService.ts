@@ -1,14 +1,11 @@
-import { ConversationsRepo, MessagesRepo, MemoryConversationsRepo, MemoryMessagesRepo } from '../repositories';
+import { ConversationsRepo, MessagesRepo } from '../repositories';
+import { getConversationsRepo, getMessagesRepo } from '../repositories/factory';
 import { Conversation, Message } from '../types';
-
-// Default repository instances
-const defaultConversationsRepo = new MemoryConversationsRepo();
-const defaultMessagesRepo = new MemoryMessagesRepo();
 
 export const ensureConversation = async (
   userId: number, 
   conversationId?: string,
-  conversationsRepo: ConversationsRepo = defaultConversationsRepo
+  conversationsRepo: ConversationsRepo = getConversationsRepo()
 ): Promise<Conversation> => {
   if (conversationId) {
     const existing = await conversationsRepo.get(conversationId);
@@ -24,8 +21,8 @@ export const ensureConversation = async (
 export const saveUserMessage = async (
   conversationId: string, 
   content: string,
-  messagesRepo: MessagesRepo = defaultMessagesRepo,
-  conversationsRepo: ConversationsRepo = defaultConversationsRepo
+  messagesRepo: MessagesRepo = getMessagesRepo(),
+  conversationsRepo: ConversationsRepo = getConversationsRepo()
 ): Promise<Message> => {
   const message = await messagesRepo.append({
     conversationId,
@@ -43,7 +40,7 @@ export const saveUserMessage = async (
 export const createAssistantMessage = async (
   conversationId: string, 
   agent: string,
-  messagesRepo: MessagesRepo = defaultMessagesRepo
+  messagesRepo: MessagesRepo = getMessagesRepo()
 ): Promise<Message> => {
   return messagesRepo.append({
     conversationId,
@@ -58,14 +55,14 @@ export const updateAssistantMessage = async (
   messageId: string, 
   content: string, 
   status: Message['status'],
-  messagesRepo: MessagesRepo = defaultMessagesRepo
+  messagesRepo: MessagesRepo = getMessagesRepo()
 ): Promise<void> => {
   await messagesRepo.update(messageId, { content, status });
 };
 
 export const updateConversationLastMessageAt = async (
   conversationId: string,
-  conversationsRepo: ConversationsRepo = defaultConversationsRepo
+  conversationsRepo: ConversationsRepo = getConversationsRepo()
 ): Promise<void> => {
   await conversationsRepo.updateMeta(conversationId, {
     lastMessageAt: new Date()
@@ -75,7 +72,7 @@ export const updateConversationLastMessageAt = async (
 export const getConversationHistory = async (
   conversationId: string, 
   limit = 10,
-  messagesRepo: MessagesRepo = defaultMessagesRepo
+  messagesRepo: MessagesRepo = getMessagesRepo()
 ): Promise<Array<{ role: 'user' | 'assistant'; content: string }>> => {
   const messages = await messagesRepo.list(conversationId, { limit });
   
@@ -89,7 +86,7 @@ export const getConversationHistory = async (
 
 export const getConversation = async (
   conversationId: string,
-  conversationsRepo: ConversationsRepo = defaultConversationsRepo
+  conversationsRepo: ConversationsRepo = getConversationsRepo()
 ): Promise<Conversation | null> => {
   return conversationsRepo.get(conversationId);
 };
@@ -97,14 +94,14 @@ export const getConversation = async (
 export const getConversationMessages = async (
   conversationId: string, 
   options?: { limit?: number; before?: Date },
-  messagesRepo: MessagesRepo = defaultMessagesRepo
+  messagesRepo: MessagesRepo = getMessagesRepo()
 ): Promise<Message[]> => {
   return messagesRepo.list(conversationId, options);
 };
 
 export const getUserConversations = async (
   userId: number,
-  conversationsRepo: ConversationsRepo = defaultConversationsRepo
+  conversationsRepo: ConversationsRepo = getConversationsRepo()
 ): Promise<Conversation[]> => {
   return conversationsRepo.listByUser(userId);
 };

@@ -1,31 +1,17 @@
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import * as dotenv from 'dotenv';
-import { MemoryUserRepo, UserRepo } from '../repositories/UserRepo';
+import { UserRepo, MemoryUserRepo } from '../repositories/UserRepo';
+import { getUserRepo } from '../repositories/factory';
 import { AuthResult, UserWithoutPassword, JwtPayload } from '../types';
+import { getConfig } from '../utils/config';
 
 // Ensure environment variables are loaded
 dotenv.config();
 
-// Configuration constants
-const config = {
-  saltRounds: parseInt(process.env.BCRYPT_ROUNDS || '12'),
-  jwtSecret: process.env.JWT_SECRET || '',
-  jwtExpiresIn: process.env.JWT_EXPIRES_IN || '24h'
-};
-
-// Validate JWT secret on module load
-if (!config.jwtSecret) {
-  console.error('JWT_SECRET environment variable is required');
-  console.error('Please check your .env file and ensure JWT_SECRET is set');
-  throw new Error('JWT_SECRET environment variable is required');
-}
-
-// Default repository instance
-const defaultUserRepo = new MemoryUserRepo();
-
 // Utility functions
 export const hashPassword = async (password: string): Promise<string> => {
+  const config = await getConfig();
   return bcrypt.hash(password, config.saltRounds);
 };
 
@@ -33,7 +19,8 @@ export const comparePassword = async (password: string, hashedPassword: string):
   return bcrypt.compare(password, hashedPassword);
 };
 
-export const generateToken = (userId: number): string => {
+export const generateToken = async (userId: number): Promise<string> => {
+  const config = await getConfig();
   return jwt.sign(
     { userId },
     config.jwtSecret,
@@ -41,7 +28,8 @@ export const generateToken = (userId: number): string => {
   );
 };
 
-export const verifyToken = (token: string): JwtPayload => {
+export const verifyToken = async (token: string): Promise<JwtPayload> => {
+  const config = await getConfig();
   return jwt.verify(token, config.jwtSecret) as JwtPayload;
 };
 
@@ -51,7 +39,7 @@ export const register = async (
   password: string, 
   firstName: string, 
   lastName: string,
-  userRepo: UserRepo = defaultUserRepo
+  userRepo: UserRepo = getUserRepo()
 ): Promise<AuthResult> => {
   try {
     // Check if user already exists
@@ -74,7 +62,7 @@ export const register = async (
     const user = await userRepo.create(userData);
 
     // Generate token
-    const token = generateToken(user.id);
+    const token = await generateToken(user.id);
 
     // Return user without password
     const { password: _, ...userWithoutPassword } = user;
@@ -91,7 +79,7 @@ export const register = async (
 export const login = async (
   email: string, 
   password: string,
-  userRepo: UserRepo = defaultUserRepo
+  userRepo: UserRepo = getUserRepo()
 ): Promise<AuthResult> => {
   try {
     // Find user by email
@@ -107,7 +95,7 @@ export const login = async (
     }
 
     // Generate token
-    const token = generateToken(user.id);
+    const token = await generateToken(user.id);
 
     // Return user without password
     const { password: _, ...userWithoutPassword } = user;
@@ -123,7 +111,7 @@ export const login = async (
 
 export const getUserById = async (
   userId: number,
-  userRepo: UserRepo = defaultUserRepo
+  userRepo: UserRepo = getUserRepo()
 ): Promise<UserWithoutPassword> => {
   try {
     const user = await userRepo.findById(userId);
@@ -140,7 +128,7 @@ export const getUserById = async (
 };
 
 // Utility function for testing
-export const clearUsers = (userRepo: UserRepo = defaultUserRepo): void => {
+export const clearUsers = (userRepo: UserRepo = getUserRepo()): void => {
   if (userRepo instanceof MemoryUserRepo) {
     (userRepo as MemoryUserRepo).clear();
   }

@@ -1,0 +1,23 @@
+{
+  "name": "crossriver-infra",
+  "version": "1.0.0",
+  "description": "CDK infrastructure for CrossRiver multi-agent assistant",
+  "scripts": {
+    "build": "tsc",
+    "watch": "tsc -w",
+    "cdk": "cdk",
+    "deploy": "cdk deploy",
+    "synth": "cdk synth",
+    "bootstrap": "cdk bootstrap"
+  },
+  "dependencies": {
+    "@aws-cdk/aws-apigatewayv2-integrations": "^1.203.0",
+    "aws-cdk-lib": "^2.100.0",
+    "constructs": "^10.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.6",
+    "aws-cdk": "^2.100.0",
+    "typescript": "^5.3.3"
+  }
+}

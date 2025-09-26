@@ -1,4 +1,4 @@
-import { GenerateOptions, LlmAdapter } from '../adapters';
+import { GenerateOptions, LlmAdapter } from '../types';
 
 export class GeneralAgent {
   constructor(private llmAdapter: LlmAdapter) {}
