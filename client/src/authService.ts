@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { getApiConfig } from './config/api';
 
 export interface User {
   id: number;
@@ -20,7 +21,7 @@ export interface AuthResponse {
 class AuthService {
   private token: string | null = null;
   private user: User | null = null;
-  private baseUrl = 'http://localhost:3002/api/auth';
+  private baseUrl = getApiConfig().AUTH_BASE_URL;
 
   constructor() {
     // Load token from localStorage on initialization

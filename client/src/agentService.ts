@@ -1,3 +1,5 @@
+import { getApiConfig } from './config/api';
+
 export interface StreamEvent {
   meta?: {
     conversationId: string;
@@ -39,7 +41,7 @@ export interface Message {
 }
 
 class AgentService {
-  private baseUrl = 'http://localhost:3002/api/agent';
+  private baseUrl = getApiConfig().AGENT_BASE_URL;
 
   async *streamChat(message: string, conversationId?: string, signal?: AbortSignal): AsyncGenerator<StreamEvent, void, unknown> {
     const token = localStorage.getItem('jwt_token');
@@ -47,14 +49,30 @@ class AgentService {
       throw new Error('Authentication required');
     }
 
-    const url = `${this.baseUrl}/stream`;
-    const urlWithParams = new URL(url);
-    urlWithParams.searchParams.append('message', message);
-    if (conversationId) {
-      urlWithParams.searchParams.append('conversationId', conversationId);
+    // Use the dedicated streaming URL for Lambda
+    const url = getApiConfig().STREAMING_URL;
+    
+    // Handle relative URLs in development vs absolute URLs in production
+    let streamUrl: string;
+    if (url.startsWith('http')) {
+      // Production: absolute URL
+      const urlWithParams = new URL(url);
+      urlWithParams.searchParams.append('message', message);
+      if (conversationId) {
+        urlWithParams.searchParams.append('conversationId', conversationId);
+      }
+      streamUrl = urlWithParams.toString();
+    } else {
+      // Development: relative URL
+      const params = new URLSearchParams();
+      params.append('message', message);
+      if (conversationId) {
+        params.append('conversationId', conversationId);
+      }
+      streamUrl = `${url}?${params.toString()}`;
     }
 
-    const response = await fetch(urlWithParams.toString(), {
+    const response = await fetch(streamUrl, {
       headers: {
         'Authorization': `Bearer ${token}`,
         'Accept': 'text/event-stream',
