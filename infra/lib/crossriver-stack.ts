@@ -231,15 +231,16 @@ export class CrossRiverStack extends cdk.Stack {
       environment: lambdaEnvironment,
       layers: [sharedLayer],
       timeout: cdk.Duration.minutes(5),
+      description: 'Streaming handler with CORS support - v4',
     });
 
     const streamingFunctionUrl = streamingFunction.addFunctionUrl({
       authType: lambda.FunctionUrlAuthType.NONE,
       cors: {
         allowedOrigins: ['http://localhost:3000'],
-        allowedMethods: [lambda.HttpMethod.GET, lambda.HttpMethod.POST, lambda.HttpMethod.OPTIONS],
-        allowedHeaders: ['Content-Type', 'Authorization'],
-        allowCredentials: false,
+        allowedMethods: [lambda.HttpMethod.GET, lambda.HttpMethod.POST],
+        allowedHeaders: ['Content-Type', 'Authorization', 'Accept', 'Cache-Control'],
+        maxAge: cdk.Duration.days(1),
       },
     });
 
@@ -296,12 +297,6 @@ export class CrossRiverStack extends cdk.Stack {
       path: '/api/agent/conversations/{id}/messages',
       methods: [apigateway.HttpMethod.GET, apigateway.HttpMethod.POST],
       integration: agentMessagesIntegration,
-    });
-
-    this.httpApi.addRoutes({
-      path: '/api/agent/stream',
-      methods: [apigateway.HttpMethod.GET, apigateway.HttpMethod.POST, apigateway.HttpMethod.OPTIONS],
-      integration: agentStreamIntegration,
     });
 
     this.streamingFunctionUrl = streamingFunctionUrl.url;

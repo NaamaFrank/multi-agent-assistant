@@ -82,8 +82,8 @@ class AuthService {
       });
 
       if (response.data.success && response.data.data) {
-        this.token = response.data.data.token;
-        this.user = response.data.data.user;
+        this.token = response.data.data.data.token;
+        this.user = response.data.data.data.user;
         
         // Save to localStorage
         localStorage.setItem('jwt_token', this.token!);

@@ -78,6 +78,7 @@ class AgentService {
         'Accept': 'text/event-stream',
         'Cache-Control': 'no-cache'
       },
+        credentials: "omit",              
       signal
     });
 

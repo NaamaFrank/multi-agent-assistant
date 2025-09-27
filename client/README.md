@@ -20,8 +20,8 @@ This project uses a development proxy to eliminate CORS issues during local deve
 
 ```
 DEVELOPMENT (localhost:3000)
-├── /api/auth/* → API Gateway (https://s95ukr3uq4.execute-api.us-east-1.amazonaws.com)
-├── /api/agent/* → API Gateway (https://s95ukr3uq4.execute-api.us-east-1.amazonaws.com)
+├── /api/auth/* → API Gateway (https://zm66uq3qmi.execute-api.us-east-1.amazonaws.com)
+├── /api/agent/* → API Gateway (https://zm66uq3qmi.execute-api.us-east-1.amazonaws.com)
 └── /agent/stream → Function URL (https://fucnyzp25mvxae64uome6qjthy0mmlts.lambda-url.us-east-1.on.aws)
 
 PRODUCTION (deployed build)
@@ -77,7 +77,7 @@ When CDK outputs change, update these files:
 2. `src/config/api.ts` - Update `PRODUCTION_CONFIG` URLs
 
 Current values from CDK:
-- **HTTP API Gateway**: `https://s95ukr3uq4.execute-api.us-east-1.amazonaws.com`
+- **HTTP API Gateway**: `https://zm66uq3qmi.execute-api.us-east-1.amazonaws.com`
 - **Function URL**: `https://fucnyzp25mvxae64uome6qjthy0mmlts.lambda-url.us-east-1.on.aws/`
 
 ## Troubleshooting

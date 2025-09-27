@@ -1,178 +1,169 @@
-// Lambda-native streaming handler using Function URL
+/// <reference path="../types/awslambda-globals.d.ts" />
+
 import { authenticate } from '../utils/auth';
 import { mapError } from '../utils/errors';
-import { getConversation, ensureConversation, saveUserMessage, createAssistantMessage, updateAssistantMessage } from '../services/ChatService';
+import {
+  getConversation,
+  ensureConversation,
+  saveUserMessage,
+  createAssistantMessage,
+  updateAssistantMessage,
+  getConversationHistory
+} from '../services/ChatService';
+import { streamChatCompletion } from '../services/StreamingService';
 
-// Function URL event type
 interface FunctionUrlEvent {
-  version: string;
-  routeKey: string;
-  rawPath: string;
-  rawQueryString: string;
-  headers: Record<string, string>;
   queryStringParameters?: Record<string, string>;
-  requestContext: {
-    accountId: string;
-    apiId: string;
-    domainName: string;
-    requestId: string;
-    time: string;
-    timeEpoch: number;
-  };
-  body?: string;
-  isBase64Encoded: boolean;
+  headers?: Record<string, string | undefined>;
+  httpMethod?: string;
+  requestContext?: { requestId?: string; http?: { method?: string; path?: string } };
 }
 
-// Helper to write SSE events
-function writeSSEEvent(type: string, data: any): string {
-  const eventData = `event: ${type}\ndata: ${JSON.stringify(data)}\n\n`;
-  console.log(`wrote ${type}`);
-  return eventData;
-}
+// *** WORKING STREAMING VERSION ***
+// CORS headers are handled by AWS Lambda Function URL configuration - no need to add them manually
 
-export const handler = async (event: FunctionUrlEvent): Promise<any> => {
-  const requestId = event.requestContext?.requestId || 'unknown';
-  
-  console.log(JSON.stringify({
-    requestId,
-    rawPath: event.rawPath,
-    hasAuthHeader: !!(event.headers?.authorization || event.headers?.Authorization),
-    queryParams: event.queryStringParameters
-  }));
+export const handler = awslambda.streamifyResponse(
+  async (event: FunctionUrlEvent, responseStream: any, context: any) => {
+    const method = event.requestContext?.http?.method || event.httpMethod || 'GET';
+    
+    console.log(`Processing ${method} request in streamifyResponse handler`);
 
-  // Build SSE response chunks
-  let responseChunks: string[] = [];
-
-  try {
-    // Authenticate user
-    const user = await authenticate(event);
-
-    // Extract parameters
-    const message = event.queryStringParameters?.message;
-    let conversationId = event.queryStringParameters?.conversationId;
-
-    if (!message) {
-      responseChunks.push(writeSSEEvent('error', { message: 'Message parameter is required' }));
-      return {
+    try {
+      // Initialize response stream with proper headers (no CORS - handled by Function URL)
+      responseStream = awslambda.HttpResponseStream.from(responseStream, {
         statusCode: 200,
         headers: {
-          'Content-Type': 'text/event-stream',
-          'Cache-Control': 'no-cache',
+          'Content-Type': method === 'OPTIONS' ? 'text/plain' : 'text/event-stream',
+          'Cache-Control': method === 'OPTIONS' ? 'max-age=86400' : 'no-cache',
           'Connection': 'keep-alive',
           'X-Accel-Buffering': 'no'
-        },
-        body: responseChunks.join('')
-      };
-    }
-
-    // Convert string userId to number
-    const numericUserId = parseInt(user.id, 10);
-    if (isNaN(numericUserId)) {
-      responseChunks.push(writeSSEEvent('error', { message: 'Invalid user ID' }));
-      return {
-        statusCode: 200,
-        headers: {
-          'Content-Type': 'text/event-stream',
-          'Cache-Control': 'no-cache',
-          'Connection': 'keep-alive',
-          'X-Accel-Buffering': 'no'
-        },
-        body: responseChunks.join('')
-      };
-    }
-
-    // Ensure conversation exists
-    let conversation;
-    if (conversationId && conversationId !== 'default') {
-      try {
-        conversation = await getConversation(conversationId);
-        if (!conversation || conversation.userId !== numericUserId) {
-          conversation = await ensureConversation(numericUserId);
-          conversationId = conversation.conversationId;
         }
-      } catch (error) {
-        // Create new conversation if not found
-        conversation = await ensureConversation(numericUserId);
-        conversationId = conversation.conversationId;
+      });
+
+      // Handle OPTIONS request
+      if (method === 'OPTIONS') {
+        console.log('Handling OPTIONS request within streamifyResponse');
+        responseStream.end(); // No body for OPTIONS
+        return;
       }
-    } else {
-      conversation = await ensureConversation(numericUserId);
-      conversationId = conversation.conversationId;
+
+      // Handle streaming request
+      const message = event.queryStringParameters?.message;
+      const conversationId = event.queryStringParameters?.conversationId;
+      const authHeader = event.headers?.authorization;
+
+      console.log('Stream request params:', { message, conversationId, hasAuth: !!authHeader });
+
+      // Validate required parameters
+      if (!message) {
+        responseStream.write('event: error\n');
+        responseStream.write('data: {"error": "Message parameter is required"}\n\n');
+        responseStream.end();
+        return;
+      }
+
+      // Authenticate user
+      let userId: number;
+      try {
+        if (!authHeader) {
+          throw new Error('Authentication required');
+        }
+        const authResult = await authenticate({ headers: { authorization: authHeader } });
+        userId = parseInt(authResult.id);
+        if (isNaN(userId)) {
+          throw new Error('Invalid user ID');
+        }
+        console.log('Streaming authentication successful, userId:', userId);
+      } catch (error) {
+        console.error('Streaming authentication error:', error);
+        responseStream.write('event: error\n');
+        responseStream.write(`data: {"error": "Authentication failed: ${String(error)}"}\n\n`);
+        responseStream.end();
+        return;
+      }
+
+      // Send initial connection confirmation
+      responseStream.write('event: connected\n');
+      responseStream.write(`data: {"status": "streaming_started", "userId": ${userId}}\n\n`);
+
+      // Send an immediate test event to confirm streaming works
+      responseStream.write('event: test\n');
+      responseStream.write('data: {"message": "Immediate test - streaming infrastructure working"}\n\n');
+
+      // Ensure conversation exists
+      console.log('Creating/getting conversation...');
+      const conversation = await ensureConversation(userId, conversationId);
+      console.log('Conversation ready:', conversation.conversationId);
+      
+      // Save user message
+      console.log('Saving user message...');
+      const userMessage = await saveUserMessage(conversation.conversationId, message);
+      console.log('User message saved');
+
+      // Send progress update
+      responseStream.write('event: progress\n');
+      responseStream.write('data: {"message": "Conversation ready, starting AI response..."}\n\n');
+
+      // Get conversation history for context
+      console.log('Getting conversation history...');
+      const history = await getConversationHistory(conversation.conversationId);
+      console.log('History retrieved, length:', history.length);
+
+      // Create assistant message placeholder
+      console.log('Creating assistant message placeholder...');
+      const assistantMessage = await createAssistantMessage(conversation.conversationId, 'claude-3-sonnet');
+      console.log('Assistant message created:', assistantMessage.messageId);
+
+      // Send conversation ready event
+      responseStream.write('event: ready\n');
+      responseStream.write(`data: {"conversationId": "${conversation.conversationId}", "messageId": "${assistantMessage.messageId}"}\n\n`);
+
+      let fullAssistantResponse = '';
+
+      // Start streaming with AWS Bedrock
+      console.log('Starting Bedrock streaming...');
+      await streamChatCompletion(message, {
+        onToken: (token: string) => {
+          fullAssistantResponse += token;
+          // Send token as SSE event
+          responseStream.write('event: token\n');
+          responseStream.write(`data: {"token": ${JSON.stringify(token)}}\n\n`);
+        },
+        onComplete: async () => {
+          try {
+            console.log('Streaming complete, updating assistant message...');
+            // Update the assistant message with complete response
+            await updateAssistantMessage(assistantMessage.messageId, fullAssistantResponse, 'complete');
+            
+            // Send completion event
+            responseStream.write('event: complete\n');
+            responseStream.write(`data: {"message": "Stream completed", "conversationId": "${conversation.conversationId}", "messageId": "${assistantMessage.messageId}", "fullResponse": ${JSON.stringify(fullAssistantResponse)}}\n\n`);
+            responseStream.end();
+            console.log('Stream completed successfully');
+          } catch (error) {
+            console.error('Error completing stream:', error);
+            responseStream.write('event: error\n');
+            responseStream.write(`data: {"error": "Failed to save response: ${String(error)}"}\n\n`);
+            responseStream.end();
+          }
+        },
+        onError: (error: Error) => {
+          console.error('Bedrock streaming error:', error);
+          responseStream.write('event: error\n');
+          responseStream.write(`data: {"error": "Streaming failed: ${String(error)}"}\n\n`);
+          responseStream.end();
+        }
+      }, history);
+
+    } catch (error) {
+      console.error('Handler error:', error);
+      try {
+        responseStream.write('event: error\n');
+        responseStream.write(`data: {"error": "Server error: ${String(error)}"}\n\n`);
+        responseStream.end();
+      } catch (writeError) {
+        console.error('Failed to write error to stream:', writeError);
+      }
     }
-
-    // Save user message directly
-    const userMessage = await saveUserMessage(conversationId, message);
-
-    // Create assistant message placeholder directly
-    const assistantMessage = await createAssistantMessage(conversationId, 'assistant');
-
-    // Write meta event
-    responseChunks.push(writeSSEEvent('meta', {
-      requestId,
-      timestamp: new Date().toISOString(),
-      conversationId,
-      agent: 'assistant',
-      userMessageId: userMessage.messageId,
-      assistantMessageId: assistantMessage.messageId
-    }));
-
-    // Simulate streaming response by chunking the response
-    const responseStart = "I received your message: ";
-    const messageWords = message.split(' ');
-    let fullResponse = responseStart;
-
-    // Stream the response start
-    responseChunks.push(writeSSEEvent('chunk', { delta: responseStart }));
-    
-    // Stream each word
-    for (const word of messageWords) {
-      const chunk = word + ' ';
-      fullResponse += chunk;
-      responseChunks.push(writeSSEEvent('chunk', { delta: chunk }));
-    }
-
-    // Update assistant message with full content directly
-    await updateAssistantMessage(assistantMessage.messageId, fullResponse, 'complete');
-
-    // Write done event
-    responseChunks.push(writeSSEEvent('done', {
-      usage: {
-        inputTokens: message.length,
-        outputTokens: fullResponse.length
-      },
-      durationMs: 1000
-    }));
-
-    return {
-      statusCode: 200,
-      headers: {
-        'Content-Type': 'text/event-stream',
-        'Cache-Control': 'no-cache',
-        'Connection': 'keep-alive',
-        'X-Accel-Buffering': 'no'
-      },
-      body: responseChunks.join('')
-    };
-
-  } catch (error: any) {
-    console.error(`[${requestId}] Streaming error:`, error);
-    const { statusCode, message } = mapError(error);
-    
-    responseChunks.push(writeSSEEvent('error', {
-      statusCode,
-      message,
-      timestamp: new Date().toISOString()
-    }));
-
-    return {
-      statusCode: 200,
-      headers: {
-        'Content-Type': 'text/event-stream',
-        'Cache-Control': 'no-cache',
-        'Connection': 'keep-alive',
-        'X-Accel-Buffering': 'no'
-      },
-      body: responseChunks.join('')
-    };
   }
-};
+);

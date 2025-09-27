@@ -28,7 +28,8 @@
   },
   "include": [
     "src/**/*",
-    "tests/**/*"
+    "tests/**/*", 
+    "server/src/types"
   ],
   "exclude": [
     "node_modules",

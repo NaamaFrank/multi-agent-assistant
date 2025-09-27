@@ -37,7 +37,8 @@ async function buildLambdas() {
           '@aws-sdk/client-dynamodb',
           '@aws-sdk/lib-dynamodb', 
           '@aws-sdk/client-bedrock-runtime',
-          '@aws-sdk/client-ssm'
+          '@aws-sdk/client-ssm', 
+          'aws-lambda'
         ],
         minify: true,
         sourcemap: false,
