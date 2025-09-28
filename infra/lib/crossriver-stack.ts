@@ -38,8 +38,8 @@ export class CrossRiverStack extends cdk.Stack {
 
     const modelId = new ssm.StringParameter(this, 'ModelId', {
       parameterName: `/crossriver/${environment}/model-id`,
-      stringValue: 'anthropic.claude-3-5-haiku-20241022',
-      description: 'Bedrock model ID for CrossRiver application',
+      stringValue: 'us.anthropic.claude-3-5-haiku-20241022-v1:0',
+      description: 'Bedrock inference profile ID for Claude 3.5 Haiku (US region)',
     });
 
     // DynamoDB Tables
@@ -110,6 +110,9 @@ export class CrossRiverStack extends cdk.Stack {
                 'bedrock:InvokeModelWithResponseStream',
               ],
               resources: [
+                // Explicit inference profile ARN in this region (note: inference profiles include account ID)
+                `arn:aws:bedrock:${this.region}:${this.account}:inference-profile/us.anthropic.claude-3-5-haiku-20241022-v1:0`,
+                // Keep existing foundation-model wildcards for flexibility
                 `arn:aws:bedrock:*::foundation-model/anthropic.claude-*`,
                 `arn:aws:bedrock:*::foundation-model/amazon.titan-*`,
               ],
@@ -159,6 +162,7 @@ export class CrossRiverStack extends cdk.Stack {
       STREAM_IDLE_TIMEOUT_MS: '60000',
       JWT_SECRET_ARN: jwtSecret.secretArn,
       MODEL_ID_PARAM: modelId.parameterName,
+      MODEL_ID: 'us.anthropic.claude-3-5-haiku-20241022-v1:0',
     };
 
     // Lambda layer for shared dependencies
@@ -223,6 +227,17 @@ export class CrossRiverStack extends cdk.Stack {
       description: 'Handle conversation messages API',
     });
 
+    const agentConversationDeleteFunction = new lambda.Function(this, 'AgentConversationDeleteFunction', {
+      runtime: lambda.Runtime.NODEJS_20_X,
+      handler: 'agent-conversation-delete.handler',
+      code: lambda.Code.fromAsset(path.join(__dirname, '../../server/dist/lambda')),
+      role: lambdaRole,
+      environment: lambdaEnvironment,
+      layers: [sharedLayer],
+      timeout: cdk.Duration.seconds(30),
+      description: 'Handle conversation deletion API',
+    });
+
     const streamingFunction = new lambda.Function(this, 'StreamingFunction', {
       runtime: lambda.Runtime.NODEJS_20_X,
       handler: 'agent-stream.handler',
@@ -267,6 +282,7 @@ export class CrossRiverStack extends cdk.Stack {
     const agentConversationsIntegration = new integrations.HttpLambdaIntegration('AgentConversationsIntegration', agentConversationsFunction);
     const agentConversationByIdIntegration = new integrations.HttpLambdaIntegration('AgentConversationByIdIntegration', agentConversationByIdFunction);
     const agentMessagesIntegration = new integrations.HttpLambdaIntegration('AgentMessagesIntegration', agentMessagesFunction);
+    const agentConversationDeleteIntegration = new integrations.HttpLambdaIntegration('AgentConversationDeleteIntegration', agentConversationDeleteFunction);
     const agentStreamIntegration = new integrations.HttpLambdaIntegration('AgentStreamIntegration', streamingFunction);
 
     this.httpApi.addRoutes({
@@ -291,6 +307,12 @@ export class CrossRiverStack extends cdk.Stack {
       path: '/api/agent/conversations/{id}',
       methods: [apigateway.HttpMethod.GET],
       integration: agentConversationByIdIntegration,
+    });
+
+    this.httpApi.addRoutes({
+      path: '/api/agent/conversations/{conversationId}',
+      methods: [apigateway.HttpMethod.DELETE],
+      integration: agentConversationDeleteIntegration,
     });
 
     this.httpApi.addRoutes({

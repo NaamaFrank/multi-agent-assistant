@@ -20,6 +20,7 @@ export const Chat: React.FC<ChatProps> = ({ onLogout }) => {
   const [error, setError] = useState('');
   const [conversations, setConversations] = useState<any[]>([]);
   const [currentConversationId, setCurrentConversationId] = useState<string | null>(null);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState<string | null>(null);
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
@@ -81,6 +82,33 @@ export const Chat: React.FC<ChatProps> = ({ onLogout }) => {
       }
     } catch (err: any) {
       setError('Failed to load conversation: ' + err.message);
+    }
+  };
+
+  const deleteConversation = async (conversationId: string, e: React.MouseEvent) => {
+    e.stopPropagation(); // Prevent triggering the conversation load
+    setShowDeleteConfirm(conversationId);
+  };
+
+  const confirmDelete = async (conversationId: string) => {
+    try {
+      console.log('Deleting conversation:', conversationId);
+      await agentService.deleteConversation(conversationId);
+      
+      // If we're currently viewing the deleted conversation, clear the view
+      if (currentConversationId === conversationId) {
+        setMessages([]);
+        setCurrentConversationId(null);
+      }
+      
+      // Refresh the conversations list
+      await loadConversations();
+      setShowDeleteConfirm(null);
+      console.log('Conversation deleted successfully');
+    } catch (err: any) {
+      setError('Failed to delete conversation: ' + err.message);
+      console.error('Delete conversation error:', err);
+      setShowDeleteConfirm(null);
     }
   };
 
@@ -268,27 +296,110 @@ export const Chat: React.FC<ChatProps> = ({ onLogout }) => {
           {conversations.map((conv) => (
             <div
               key={conv.conversationId}
-              onClick={() => loadConversation(conv.conversationId)}
               style={{
                 padding: '10px',
                 margin: '5px 0',
                 backgroundColor: conv.conversationId === currentConversationId ? '#e7f3ff' : '#f8f9fa',
                 border: '1px solid #ddd',
                 borderRadius: '4px',
-                cursor: 'pointer',
-                fontSize: '12px'
+                fontSize: '12px',
+                position: 'relative'
               }}
             >
-              <div style={{ fontWeight: 'bold' }}>
-                {new Date(conv.createdAt).toLocaleDateString()}
+              <div 
+                onClick={() => loadConversation(conv.conversationId)}
+                style={{ cursor: 'pointer', paddingRight: '30px' }}
+              >
+                <div style={{ fontWeight: 'bold' }}>
+                  {new Date(conv.createdAt).toLocaleDateString()}
+                </div>
+                <div style={{ color: '#666', marginTop: '2px' }}>
+                  {conv.title || 'Untitled conversation'}
+                </div>
               </div>
-              <div style={{ color: '#666', marginTop: '2px' }}>
-                {conv.title || 'Untitled conversation'}
-              </div>
+              <button
+                onClick={(e) => deleteConversation(conv.conversationId, e)}
+                style={{
+                  position: 'absolute',
+                  right: '5px',
+                  top: '50%',
+                  transform: 'translateY(-50%)',
+                  background: '#ff4444',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '3px',
+                  width: '20px',
+                  height: '20px',
+                  fontSize: '12px',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center'
+                }}
+                title="Delete conversation"
+              >
+                ×
+              </button>
             </div>
           ))}
         </div>
       </div>
+
+      {/* Delete Confirmation Dialog */}
+      {showDeleteConfirm && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0, 0, 0, 0.5)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 1000
+        }}>
+          <div style={{
+            backgroundColor: 'white',
+            padding: '20px',
+            borderRadius: '8px',
+            maxWidth: '400px',
+            width: '90%'
+          }}>
+            <h3 style={{ margin: '0 0 15px 0' }}>Delete Conversation</h3>
+            <p style={{ margin: '0 0 20px 0' }}>
+              Are you sure you want to delete this conversation? This action cannot be undone.
+            </p>
+            <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
+              <button
+                onClick={() => setShowDeleteConfirm(null)}
+                style={{
+                  padding: '8px 16px',
+                  backgroundColor: '#f5f5f5',
+                  border: '1px solid #ddd',
+                  borderRadius: '4px',
+                  cursor: 'pointer'
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => confirmDelete(showDeleteConfirm)}
+                style={{
+                  padding: '8px 16px',
+                  backgroundColor: '#ff4444',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '4px',
+                  cursor: 'pointer'
+                }}
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Main Chat Area */}
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>

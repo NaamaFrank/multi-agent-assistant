@@ -231,6 +231,29 @@ class AgentService {
 
     return { success: true, data: data.data };
   }
+
+  async deleteConversation(conversationId: string) {
+    const token = localStorage.getItem('jwt_token');
+    if (!token) {
+      throw new Error('Authentication required');
+    }
+
+    const response = await fetch(`${this.baseUrl}/conversations/${conversationId}`, {
+      method: 'DELETE',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      }
+    });
+
+    const data = await response.json();
+    
+    if (!response.ok) {
+      throw new Error(data.message || 'Failed to delete conversation');
+    }
+
+    return data;
+  }
 }
 
 export const agentService = new AgentService();
