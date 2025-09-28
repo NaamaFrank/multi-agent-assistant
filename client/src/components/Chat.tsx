@@ -7,6 +7,7 @@ interface Message {
   text: string;
   isUser: boolean;
   timestamp: Date;
+  agent?: string; // Track which agent responded
 }
 
 interface ChatProps {
@@ -21,6 +22,9 @@ export const Chat: React.FC<ChatProps> = ({ onLogout }) => {
   const [conversations, setConversations] = useState<any[]>([]);
   const [currentConversationId, setCurrentConversationId] = useState<string | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState<string | null>(null);
+  
+  // Track agent for streaming messages
+  const [currentStreamingAgent, setCurrentStreamingAgent] = useState<string | null>(null);
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
@@ -73,7 +77,8 @@ export const Chat: React.FC<ChatProps> = ({ onLogout }) => {
           id: msg.messageId,  
           text: msg.content,
           isUser: msg.role === 'user',
-          timestamp: new Date(msg.ts)
+          timestamp: new Date(msg.ts),
+          agent: msg.agent // Include agent info from database
         }));
         console.log('Formatted messages:', formattedMessages);
         setMessages(formattedMessages);
@@ -127,6 +132,7 @@ export const Chat: React.FC<ChatProps> = ({ onLogout }) => {
     setInputText('');
     setIsStreaming(true);
     setError('');
+    setCurrentStreamingAgent(null); // Reset for new message
 
     // Create abort controller for this request
     const abortController = new AbortController();
@@ -172,8 +178,12 @@ export const Chat: React.FC<ChatProps> = ({ onLogout }) => {
           // Accumulate text in ref for batched updates
           streamingTextRef.current += chunk.chunk.delta;
         } else if (chunk.meta?.conversationId) {
-          console.log('Received meta:', chunk.meta.conversationId);
+          console.log('Received meta:', chunk.meta);
           setCurrentConversationId(chunk.meta.conversationId);
+          // Capture agent information from meta event
+          if (chunk.meta.agent) {
+            setCurrentStreamingAgent(chunk.meta.agent);
+          }
         } else if (chunk.done) {
           console.log('Streaming completed with done event');
           break;
@@ -188,13 +198,14 @@ export const Chat: React.FC<ChatProps> = ({ onLogout }) => {
         streamingIntervalRef.current = null;
       }
 
-      // Final update with complete text
+      // Final update with complete text and agent information
       if (streamingTextRef.current.length > 0) {
         setMessages(prev => {
           const updated = [...prev];
           const lastMessage = updated[updated.length - 1];
           if (!lastMessage.isUser) {
             lastMessage.text = streamingTextRef.current;
+            lastMessage.agent = currentStreamingAgent || 'general'; // Set agent info
           }
           return updated;
         });
@@ -444,6 +455,18 @@ export const Chat: React.FC<ChatProps> = ({ onLogout }) => {
                   {message.text}
                   {!message.isUser && isStreaming && message === messages[messages.length - 1] && (
                     <span style={{ opacity: 0.5 }}>▊</span>
+                  )}
+                  {!message.isUser && message.agent && (
+                    <div style={{
+                      fontSize: '10px',
+                      color: '#666',
+                      marginTop: '6px',
+                      paddingTop: '4px',
+                      borderTop: '1px solid #e0e0e0',
+                      fontStyle: 'italic'
+                    }}>
+                      🤖 {message.agent}
+                    </div>
                   )}
                 </div>
               </div>

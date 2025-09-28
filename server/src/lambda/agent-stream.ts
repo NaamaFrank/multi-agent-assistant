@@ -130,13 +130,13 @@ export const handler = awslambda.streamifyResponse(
           onComplete: async () => {
             const assistantMsg = await createAssistantMessageWithContent(
               convo.conversationId,
-              'claude-3-5-haiku',
+              agent,
               fullAssistant
             );
             // Send final meta w/ assistant id (optional)
             writeSSE(stream, 'meta', {
               conversationId: convo.conversationId,
-              agent: 'claude-3-5-haiku',
+              agent: agent,
               userMessageId: userMsg.messageId,
               assistantMessageId: assistantMsg.messageId
             });
