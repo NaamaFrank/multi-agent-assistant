@@ -113,11 +113,6 @@ export const handler = awslambda.streamifyResponse(
 
       const agent: AgentKey = AgentRouter.route({
         message,
-        path: event.requestContext?.http?.path,
-        query: event.queryStringParameters as any,
-        headers: {
-          authorization: event.headers?.authorization || event.headers?.Authorization || '',
-        },
       });
 
       // Send meta ASAP so the UI can prep
