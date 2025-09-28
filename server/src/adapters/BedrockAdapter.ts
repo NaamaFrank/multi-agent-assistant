@@ -9,7 +9,9 @@ export class BedrockAdapter implements LlmAdapter {
     this.client = new BedrockRuntimeClient({ 
       region: region || process.env.BEDROCK_REGION || process.env.AWS_REGION || 'us-east-1'
     });
-    this.modelId = modelId || process.env.MODEL_ID || 'anthropic.claude-3-5-haiku-20241022';
+    // Use Claude 3.5 Haiku inference profile ID (US region)
+    this.modelId = modelId || process.env.MODEL_ID || 'us.anthropic.claude-3-5-haiku-20241022-v1:0';
+        
   }
 
   async *generate(prompt: string, abortSignal?: AbortSignal): AsyncGenerator<string, LlmUsage> {
@@ -71,11 +73,13 @@ export class BedrockAdapter implements LlmAdapter {
       }
       
       if (error.name === 'ValidationException') {
-        throw new Error(`Invalid request to Bedrock: ${error.message}`);
+        const region = this.client.config.region || 'us-east-1';
+        throw new Error(`Bedrock validation error. Ensure MODEL_ID is an inference profile ID like us.anthropic.claude-3-5-haiku-20241022-v1:0 for region ${region}. Current: ${this.modelId}`);
       }
       
       if (error.name === 'AccessDeniedException') {
-        throw new Error('Access denied to Bedrock model. Check your IAM permissions.');
+        const region = this.client.config.region || 'us-east-1';
+        throw new Error(`Bedrock denied access. Ensure model access is granted in Bedrock (${region}) and MODEL_ID is an inference profile ID like us.anthropic.claude-3-5-haiku-20241022-v1:0. Enable at: https://console.aws.amazon.com/bedrock/home?region=${region}#/modelaccess`);
       }
       
       if (error.name === 'ThrottlingException') {

@@ -1,6 +1,4 @@
-import { BedrockRuntimeClient, InvokeModelWithResponseStreamCommand } from '@aws-sdk/client-bedrock-runtime';
-
-const bedrock = new BedrockRuntimeClient({ region: 'us-east-1' });
+import { BedrockAdapter } from '../adapters/BedrockAdapter';
 
 export interface StreamingOptions {
   onToken: (token: string) => void;
@@ -14,61 +12,49 @@ export const streamChatCompletion = async (
   conversationHistory: Array<{ role: 'user' | 'assistant'; content: string }> = []
 ): Promise<void> => {
   try {
-    // Build messages array for Claude
-    const messages = [
+    // Build the full conversation context
+    const fullHistory = [
       ...conversationHistory,
       { role: 'user' as const, content: userMessage }
     ];
-
-    // Claude 3 Sonnet model parameters
-    const payload = {
-      anthropic_version: "bedrock-2023-05-31",
-      max_tokens: 4000,
-      messages: messages,
-      temperature: 0.7,
-      stream: true
-    };
-
-    const command = new InvokeModelWithResponseStreamCommand({
-      modelId: 'anthropic.claude-3-sonnet-20240229-v1:0',
-      contentType: 'application/json',
-      body: JSON.stringify(payload)
-    });
-
-    const response = await bedrock.send(command);
-
-    if (!response.body) {
-      throw new Error('No response body from Bedrock');
-    }
-
-    let fullContent = '';
-
-    // Process the streaming response
-    for await (const chunk of response.body) {
-      if (chunk.chunk?.bytes) {
-        const chunkData = JSON.parse(new TextDecoder().decode(chunk.chunk.bytes));
-        
-        if (chunkData.type === 'content_block_delta') {
-          const token = chunkData.delta?.text || '';
-          if (token) {
-            fullContent += token;
-            options.onToken(token);
-          }
-        } else if (chunkData.type === 'message_stop') {
-          // Stream is complete
-          await options.onComplete();
-          return;
-        } else if (chunkData.type === 'error') {
-          throw new Error(chunkData.error?.message || 'Bedrock streaming error');
-        }
+    
+    // Convert conversation to a single prompt (Claude style)
+    let prompt = '';
+    for (const message of fullHistory) {
+      if (message.role === 'user') {
+        prompt += `Human: ${message.content}\n\n`;
+      } else {
+        prompt += `Assistant: ${message.content}\n\n`;
       }
     }
-
-    // If we get here without a message_stop, still call onComplete
-    await options.onComplete();
+    prompt += 'Assistant:';
+    
+    // Use BedrockAdapter for proper inference profile handling
+    const adapter = new BedrockAdapter();
+    
+    try {
+      const generator = adapter.generate(prompt);
+      
+      for await (const token of generator) {
+        if (typeof token === 'string') {
+          options.onToken(token);
+        } else {
+          // This is the final LlmUsage object
+          console.log('Streaming completed with usage:', token);
+          break;
+        }
+      }
+      
+      console.log('BedrockAdapter streaming completed successfully');
+      await options.onComplete();
+      
+    } catch (error) {
+      console.error('BedrockAdapter streaming error:', error);
+      options.onError(error as Error);
+    }
 
   } catch (error) {
-    console.error('Bedrock streaming error:', error);
+    console.error('StreamingService error:', error);
     options.onError(error as Error);
   }
 };

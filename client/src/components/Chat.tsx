@@ -201,13 +201,11 @@ export const Chat: React.FC<ChatProps> = ({ onLogout }) => {
       }
 
       console.log('Streaming completed, refreshing conversations');
-      // Refresh conversations list
+      // Refresh conversations list to show updated last message time
       loadConversations();
       
-      // Reload current conversation to show the assistant's response
-      if (currentConversationId) {
-        loadConversation(currentConversationId);
-      }
+      // Don't reload conversation - we already have the streaming content displayed correctly
+      // The streaming text is already in the messages state from the final update above
 
     } catch (err: any) {
       if (err.name === 'AbortError') {

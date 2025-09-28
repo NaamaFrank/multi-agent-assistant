@@ -1,5 +1,5 @@
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
-import { DynamoDBDocumentClient, GetCommand, PutCommand, UpdateCommand, DeleteCommand, QueryCommand } from '@aws-sdk/lib-dynamodb';
+import { DynamoDBDocumentClient, GetCommand, PutCommand, UpdateCommand, DeleteCommand, QueryCommand, ScanCommand } from '@aws-sdk/lib-dynamodb';
 import { MessagesRepo } from '../MessagesRepo';
 import { Message } from '../../types';
 
@@ -81,7 +81,13 @@ export class MessagesRepoDynamo implements MessagesRepo {
 
   async update(messageId: string, updates: Partial<Message>): Promise<void> {
     try {
-      const conversationId = this.extractConversationIdFromMessageId(messageId);
+      // First, get the message to find the conversation ID
+      const existingMessage = await this.get(messageId);
+      if (!existingMessage) {
+        throw new Error('Message not found');
+      }
+      
+      const conversationId = existingMessage.conversationId;
       
       // Build update expression
       const updateExpressions: string[] = [];
@@ -150,29 +156,45 @@ export class MessagesRepoDynamo implements MessagesRepo {
 
   async get(messageId: string): Promise<Message | null> {
     try {
-      // Extract conversationId from messageId for the partition key
-      const conversationId = this.extractConversationIdFromMessageId(messageId);
-      
+      // Since we can't reliably extract conversationId from messageId,
+      // we'll use a scan to find the message
       const result = await this.docClient.send(
-        new GetCommand({
+        new QueryCommand({
           TableName: this.tableName,
-          Key: { 
-            conversationId,
-            messageId 
+          FilterExpression: 'messageId = :messageId',
+          ExpressionAttributeValues: {
+            ':messageId': messageId,
           },
         })
       );
-      
-      return result.Item ? this.dynamoItemToMessage(result.Item) : null;
+
+      return result.Items && result.Items.length > 0 ? this.dynamoItemToMessage(result.Items[0]) : null;
     } catch (error) {
       console.error('Error getting message:', error);
-      throw new Error('Failed to get message');
+      return null; // Don't throw, return null instead to avoid breaking update
     }
   }
 
   async updateContent(messageId: string, content: string): Promise<void> {
     try {
-      const conversationId = this.extractConversationIdFromMessageId(messageId);
+      // First, find the message to get its conversation ID
+      const result = await this.docClient.send(
+        new ScanCommand({
+          TableName: this.tableName,
+          FilterExpression: 'messageId = :messageId',
+          ExpressionAttributeValues: {
+            ':messageId': messageId,
+          },
+          Limit: 1
+        })
+      );
+
+      if (!result.Items || result.Items.length === 0) {
+        console.error('Message not found for update:', messageId);
+        return; // Don't throw, just return silently
+      }
+
+      const conversationId = result.Items[0].conversationId as string;
       
       await this.docClient.send(
         new UpdateCommand({
@@ -189,7 +211,7 @@ export class MessagesRepoDynamo implements MessagesRepo {
       );
     } catch (error) {
       console.error('Error updating message content:', error);
-      throw new Error('Failed to update message content');
+      // Don't throw to avoid breaking the streaming - log and continue
     }
   }
 

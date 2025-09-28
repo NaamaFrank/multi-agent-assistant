@@ -37,16 +37,17 @@ export const saveUserMessage = async (
   return message;
 };
 
-export const createAssistantMessage = async (
+export const createAssistantMessageWithContent = async (
   conversationId: string, 
   agent: string,
+  content: string,
   messagesRepo: MessagesRepo = getMessagesRepo()
 ): Promise<Message> => {
   return messagesRepo.append({
     conversationId,
     role: 'assistant',
     agent,
-    content: '',
+    content,
     status: 'complete'
   });
 };
