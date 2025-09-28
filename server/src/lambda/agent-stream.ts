@@ -32,7 +32,6 @@ export const handler = awslambda.streamifyResponse(
       const resp = awslambda.HttpResponseStream.from(responseStream, {
         statusCode: 200,
         headers: {
-          // 'Access-Control-Allow-Origin': '*',
           'Access-Control-Allow-Headers': 'authorization, content-type',
           'Access-Control-Allow-Methods': 'GET, OPTIONS'
         }
@@ -44,21 +43,14 @@ export const handler = awslambda.streamifyResponse(
     const stream = awslambda.HttpResponseStream.from(responseStream, {
       statusCode: 200,
       headers: {
-        // Critical for SSE
         'Content-Type': 'text/event-stream; charset=utf-8',
         'Cache-Control': 'no-cache, no-transform',
         'Connection': 'keep-alive',
-        // Helps avoid proxy buffering in some stacks
         'X-Accel-Buffering': 'no',
-        // CORS
-        // 'Access-Control-Allow-Origin': '*',
-        // 'Access-Control-Allow-Headers': 'authorization, content-type',
-        // 'Access-Control-Allow-Methods': 'GET, OPTIONS'
       }
     });
 
     const heartbeat = setInterval(() => {
-      // Comment lines are valid SSE keep-alives
       stream.write(`: ping\n\n`);
     }, 15000);
 
@@ -104,7 +96,7 @@ export const handler = awslambda.streamifyResponse(
       const convo = await ensureConversation(userId, conversationId);
       const userMsg = await saveUserMessage(convo.conversationId, message);
 
-      // Load prior history (we’ll append the new user msg in streamChatCompletion)
+      // Load prior history 
       const fullHistory = await getConversationHistory(convo.conversationId);
       const history =
         fullHistory.length > 0 && fullHistory[fullHistory.length - 1].role === 'user'
@@ -123,7 +115,7 @@ export const handler = awslambda.streamifyResponse(
         userMessageId: userMsg.messageId,
         assistantMessageId: ''
       });
-      writeSSE(stream, 'chunk', { delta: '' });  // harmless; triggers the UI tick
+      writeSSE(stream, 'chunk', { delta: '' });  
 
 
       let fullAssistant = '';
