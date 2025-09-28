@@ -1,5 +1,5 @@
 // Authentication utilities
-import { verifyToken } from '../services/authService';
+import { verifyToken } from '../services/AuthService';
 import { HttpError } from './errors';
 
 export interface AuthenticatedUser {

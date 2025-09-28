@@ -1,7 +1,7 @@
 import { APIGatewayProxyHandlerV2 } from 'aws-lambda';
 import { createSuccessResponse, createErrorResponse } from '../utils/http';
 import { mapError } from '../utils/errors';
-import { register } from '../services/authService';
+import { register } from '../services/AuthService';
 
 interface RegisterRequest {
   email: string;

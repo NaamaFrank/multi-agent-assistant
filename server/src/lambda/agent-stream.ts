@@ -8,6 +8,8 @@ import {
   getConversationHistory
 } from '../services/ChatService';
 import { streamChatCompletion } from '../services/StreamingService';
+import type { AgentKey } from '../utils/prompts';
+import { AgentRouter } from '../routing/agentsRouter';
 
 interface FunctionUrlEvent {
   queryStringParameters?: Record<string, string>;
@@ -16,167 +18,157 @@ interface FunctionUrlEvent {
   requestContext?: { requestId?: string; http?: { method?: string; path?: string } };
 }
 
-export const handler = async (event: FunctionUrlEvent, context: any) => {
-  
-  try {
+function writeSSE(stream: any, event: string, data: any) {
+  stream.write(`event: ${event}\n`);
+  stream.write(`data: ${JSON.stringify(data)}\n\n`);
+}
+
+export const handler = awslambda.streamifyResponse(
+  async (event: FunctionUrlEvent, responseStream: any, _context: any) => {
     const method = event.requestContext?.http?.method || event.httpMethod || 'GET';
-    
-    // Handle OPTIONS request
+
+    // Preflight
     if (method === 'OPTIONS') {
-      return {
+      const resp = awslambda.HttpResponseStream.from(responseStream, {
         statusCode: 200,
         headers: {
-          'Content-Type': 'text/plain'
-        },
-        body: ''
-      };
+          // 'Access-Control-Allow-Origin': '*',
+          'Access-Control-Allow-Headers': 'authorization, content-type',
+          'Access-Control-Allow-Methods': 'GET, OPTIONS'
+        }
+      });
+      resp.end();
+      return;
     }
 
-    // Get request parameters
-    const message = event.queryStringParameters?.message?.trim();
-    const conversationId = event.queryStringParameters?.conversationId;
-    const authHeader = event.headers?.['Authorization'] || event.headers?.['authorization'];
-    
-    console.log('Request params:', { 
-      message: message ? message.substring(0, 100) : undefined,
-      conversationId, 
-      hasAuth: !!authHeader 
+    const stream = awslambda.HttpResponseStream.from(responseStream, {
+      statusCode: 200,
+      headers: {
+        // Critical for SSE
+        'Content-Type': 'text/event-stream; charset=utf-8',
+        'Cache-Control': 'no-cache, no-transform',
+        'Connection': 'keep-alive',
+        // Helps avoid proxy buffering in some stacks
+        'X-Accel-Buffering': 'no',
+        // CORS
+        // 'Access-Control-Allow-Origin': '*',
+        // 'Access-Control-Allow-Headers': 'authorization, content-type',
+        // 'Access-Control-Allow-Methods': 'GET, OPTIONS'
+      }
     });
 
-    if (!message) {
-      return {
-        statusCode: 200,
-        headers: {
-          'Content-Type': 'text/event-stream',
-          'Cache-Control': 'no-cache'
-        },
-        body: 'event: error\ndata: {"error": "Message parameter is required"}\n\n'
-      };
-    }
+    const heartbeat = setInterval(() => {
+      // Comment lines are valid SSE keep-alives
+      stream.write(`: ping\n\n`);
+    }, 15000);
 
-    // Authenticate user
-    let userId: number;
     try {
-      if (!authHeader) {
-        throw new Error('Authentication required');
+      const message = event.queryStringParameters?.message?.trim();
+      const conversationId = event.queryStringParameters?.conversationId;
+      const token = event.queryStringParameters?.token;
+      const authHeader = event.headers?.['Authorization'] || event.headers?.['authorization'];
+
+      if (!message) {
+        writeSSE(stream, 'error', { message: 'Message parameter is required' });
+        stream.end();
+        return;
       }
-      const authResult = await authenticate({ headers: { authorization: authHeader } });
-      userId = parseInt(authResult.id);
+
+      if (!authHeader && !token) {
+        writeSSE(stream, 'error', { error: 'Authentication required' });
+        stream.end();
+        return;
+      }
+
+      // Try authentication with either header or token parameter
+      let authResult: any;
+      try {
+        if (authHeader) {
+          authResult = await authenticate({ headers: { authorization: authHeader } });
+        } else if (token) {
+          authResult = await authenticate({ headers: { authorization: `Bearer ${token}` } });
+        }
+      } catch (error) {
+        writeSSE(stream, 'error', { error: `Authentication failed: ${error}` });
+        stream.end();
+        return;
+      }
+
+      const userId = parseInt(authResult.id);
       if (isNaN(userId)) {
-        throw new Error('Invalid user ID');
+        writeSSE(stream, 'error', { error: 'Invalid user ID' });
+        stream.end();
+        return;
       }
-      console.log('Authentication successful, userId:', userId);
-    } catch (error) {
-      console.error('Authentication error:', error);
-      return {
-        statusCode: 200,
+
+      const convo = await ensureConversation(userId, conversationId);
+      const userMsg = await saveUserMessage(convo.conversationId, message);
+
+      // Load prior history (we’ll append the new user msg in streamChatCompletion)
+      const fullHistory = await getConversationHistory(convo.conversationId);
+      const history =
+        fullHistory.length > 0 && fullHistory[fullHistory.length - 1].role === 'user'
+          ? fullHistory.slice(0, -1)
+          : fullHistory;
+
+      const agent: AgentKey = AgentRouter.route({
+        message,
+        path: event.requestContext?.http?.path,
+        query: event.queryStringParameters as any,
         headers: {
-          'Content-Type': 'text/event-stream',
-          'Cache-Control': 'no-cache'
+          authorization: event.headers?.authorization || event.headers?.Authorization || '',
         },
-        body: `event: error\ndata: {"error": "Authentication failed: ${String(error)}"}\n\n`
-      };
-    }
+      });
 
-    // Build SSE response
-    let sseResponse = '';
-    
-    // Send initial meta information
-    sseResponse += 'event: meta\n';
-    sseResponse += `data: {"conversationId": "", "agent": "claude-3-haiku", "userMessageId": "", "assistantMessageId": ""}\n\n`;
-
-    // Ensure conversation exists
-    console.log('Creating/getting conversation...');
-    const conversation = await ensureConversation(userId, conversationId);
-    console.log('Conversation ready:', conversation.conversationId);
-    
-    // Save user message
-    console.log('Saving user message...');
-    const userMessage = await saveUserMessage(conversation.conversationId, message);
-    console.log('User message saved');
+      // Send meta ASAP so the UI can prep
+      writeSSE(stream, 'meta', {
+        conversationId: convo.conversationId,
+        agent: agent,                 
+        model: 'claude-3-5-haiku',    
+        userMessageId: userMsg.messageId,
+        assistantMessageId: ''
+      });
+      writeSSE(stream, 'chunk', { delta: '' });  // harmless; triggers the UI tick
 
 
-    // Get conversation history for context (excluding the current user message we just saved)
-    console.log('Getting conversation history...');
-    const fullHistory = await getConversationHistory(conversation.conversationId);
-    console.log('Full history retrieved, length:', fullHistory.length);
-    
-    // Remove the last user message if it exists (since we'll add it again in streamChatCompletion)
-    const history = fullHistory.length > 0 && fullHistory[fullHistory.length - 1].role === 'user' 
-      ? fullHistory.slice(0, -1) 
-      : fullHistory;
-    console.log('History for Bedrock, length:', history.length);
+      let fullAssistant = '';
 
-    // Get AI response first, then create assistant message with complete content
-    console.log('Starting AI response generation...');
-    
-    let fullAssistantResponse = '';
-    const responseTokens: string[] = [];
-
-    // Use a promise to collect streaming tokens
-    await new Promise<void>((resolve, reject) => {
-      // Pass the user message - streamChatCompletion will add it to the history
-      streamChatCompletion(message, {
-        onToken: (token: string) => {
-          fullAssistantResponse += token;
-          responseTokens.push(token);
-        },
-        onComplete: async () => {
-          try {
-            console.log('AI response complete, response length:', fullAssistantResponse.length);
-            resolve();
-          } catch (error) {
-            console.error('Error completing response:', error);
-            reject(error);
+      await streamChatCompletion(
+        message,
+        {
+          onToken: (token: string) => {
+            fullAssistant += token;
+            writeSSE(stream, 'chunk', { delta: token });
+          },
+          onComplete: async () => {
+            const assistantMsg = await createAssistantMessageWithContent(
+              convo.conversationId,
+              'claude-3-5-haiku',
+              fullAssistant
+            );
+            // Send final meta w/ assistant id (optional)
+            writeSSE(stream, 'meta', {
+              conversationId: convo.conversationId,
+              agent: 'claude-3-5-haiku',
+              userMessageId: userMsg.messageId,
+              assistantMessageId: assistantMsg.messageId
+            });
+            writeSSE(stream, 'done', { usage: { inputTokens: null, outputTokens: null } });
+            stream.end();
+          },
+          onError: (err: Error) => {
+            writeSSE(stream, 'error', { error: String(err) });
+            stream.end();
           }
         },
-        onError: (error: Error) => {
-          console.error('AI response error:', error);
-          reject(error);
-        }
-      }, history);
-    });
-
-    // Now create assistant message with the complete content directly
-    console.log('Creating assistant message with complete content...');
-    const assistantMessage = await createAssistantMessageWithContent(conversation.conversationId, 'claude-3-haiku', fullAssistantResponse);
-    console.log('Assistant message created with content:', assistantMessage.messageId);
-
-    // Send updated meta information
-    sseResponse += 'event: meta\n';
-    sseResponse += `data: {"conversationId": "${conversation.conversationId}", "agent": "claude-3-haiku", "userMessageId": "${userMessage.messageId}", "assistantMessageId": "${assistantMessage.messageId}"}\n\n`;
-
-    // Add all tokens as chunks to SSE response
-    for (const token of responseTokens) {
-      sseResponse += 'event: chunk\n';
-      sseResponse += `data: {"delta": ${JSON.stringify(token)}}\n\n`;
+        history,
+        agent
+      );
+    } catch (err) {
+      writeSSE(stream, 'error', { error: `Server error: ${String(err)}` });
+      stream.end();
+    } finally {
+      clearInterval(heartbeat);
     }
-    
-    // Send completion event
-    sseResponse += 'event: done\n';
-    sseResponse += `data: {"usage": {"inputTokens": null, "outputTokens": null}, "durationMs": 0}\n\n`;
-
-    console.log('Pseudo-streaming response complete');
-    
-    return {
-      statusCode: 200,
-      headers: {
-        'Content-Type': 'text/event-stream',
-        'Cache-Control': 'no-cache',
-        'Connection': 'keep-alive'
-      },
-      body: sseResponse
-    };
-
-  } catch (error) {
-    console.error('Handler error:', error);
-    return {
-      statusCode: 200,
-      headers: {
-        'Content-Type': 'text/event-stream',
-        'Cache-Control': 'no-cache'
-      },
-      body: `event: error\ndata: {"error": "Server error: ${String(error)}"}\n\n`
-    };
   }
-};
+);

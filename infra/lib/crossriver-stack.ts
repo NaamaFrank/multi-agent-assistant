@@ -251,6 +251,7 @@ export class CrossRiverStack extends cdk.Stack {
 
     const streamingFunctionUrl = streamingFunction.addFunctionUrl({
       authType: lambda.FunctionUrlAuthType.NONE,
+      invokeMode: lambda.InvokeMode.RESPONSE_STREAM,
       cors: {
         allowedOrigins: ['http://localhost:3000'],
         allowedMethods: [lambda.HttpMethod.GET, lambda.HttpMethod.POST],

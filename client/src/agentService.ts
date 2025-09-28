@@ -6,6 +6,7 @@ export interface StreamEvent {
     agent: string;
     userMessageId: string;
     assistantMessageId: string;
+    model?: string;
   };
   chunk?: {
     delta: string;
@@ -43,48 +44,53 @@ export interface Message {
 class AgentService {
   private baseUrl = getApiConfig().AGENT_BASE_URL;
 
-  async *streamChat(message: string, conversationId?: string, signal?: AbortSignal): AsyncGenerator<StreamEvent, void, unknown> {
+  /**
+   * Stream chat via SSE over fetch(). No Authorization header (token is in querystring).
+   */
+  async *streamChat(
+    message: string,
+    conversationId?: string,
+    signal?: AbortSignal
+  ): AsyncGenerator<StreamEvent, void, unknown> {
     const token = localStorage.getItem('jwt_token');
     if (!token) {
       throw new Error('Authentication required');
     }
 
-    // Use the dedicated streaming URL for Lambda
+    // Dedicated streaming URL (Lambda Function URL)
     const url = getApiConfig().STREAMING_URL;
-    
-    // Handle relative URLs in development vs absolute URLs in production
+
+    // Build full URL with query params
     let streamUrl: string;
     if (url.startsWith('http')) {
-      // Production: absolute URL
       const urlWithParams = new URL(url);
       urlWithParams.searchParams.append('message', message);
-      if (conversationId) {
-        urlWithParams.searchParams.append('conversationId', conversationId);
-      }
+      urlWithParams.searchParams.append('token', token); // auth via query
+      if (conversationId) urlWithParams.searchParams.append('conversationId', conversationId);
       streamUrl = urlWithParams.toString();
     } else {
-      // Development: relative URL
       const params = new URLSearchParams();
       params.append('message', message);
-      if (conversationId) {
-        params.append('conversationId', conversationId);
-      }
+      params.append('token', token);
+      if (conversationId) params.append('conversationId', conversationId);
       streamUrl = `${url}?${params.toString()}`;
     }
 
     const response = await fetch(streamUrl, {
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Accept': 'text/event-stream',
-        'Cache-Control': 'no-cache'
-      },
-        credentials: "omit",              
-      signal
-    });
+        credentials: 'omit',
+        signal
+        });
 
     if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(errorData.message || 'Stream request failed');
+      // Try to read JSON error if present
+      let msg = 'Stream request failed';
+      try {
+        const errorData = await response.json();
+        msg = errorData.message || msg;
+      } catch {
+        // ignore
+      }
+      throw new Error(msg);
     }
 
     const reader = response.body?.getReader();
@@ -93,46 +99,70 @@ class AgentService {
     }
 
     const decoder = new TextDecoder();
+
+    // Robust SSE parsing: handles CRLF, multi-line data blocks, and event boundaries
     let buffer = '';
-    let currentEvent = '';
+    let eventName = '';
+    let dataBuffer = '';
 
     try {
       while (true) {
         const { done, value } = await reader.read();
-        
-        if (done) {
-          break;
-        }
+        if (done) break;
 
         buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split('\n');
-        buffer = lines.pop() || '';
 
-        for (const line of lines) {
-          if (line.startsWith('event: ')) {
-            currentEvent = line.substring(7).trim();
-          } else if (line.startsWith('data: ')) {
-            try {
-              const data = JSON.parse(line.substring(6));
-              
-              // Create proper StreamEvent based on event type
-              let streamEvent: StreamEvent = {};
-              
-              if (currentEvent === 'meta') {
-                streamEvent.meta = data;
-              } else if (currentEvent === 'chunk') {
-                streamEvent.chunk = data;
-              } else if (currentEvent === 'done') {
-                streamEvent.done = data;
-              } else if (currentEvent === 'error') {
-                streamEvent.error = data;
+        // Split on LF, keep trailing partial in buffer
+        const lines = buffer.split('\n');
+        buffer = lines.pop() ?? '';
+
+        for (let raw of lines) {
+          // Strip trailing CR (from CRLF)
+          const line = raw.replace(/\r$/, '');
+
+          if (line.startsWith('event:')) {
+            eventName = line.slice(6).trim();
+          } else if (line.startsWith('data:')) {
+            // Accumulate data lines until blank separator
+            // Keep the newline; we'll trim at dispatch
+            dataBuffer += line.slice(5).trimStart() + '\n';
+          } else if (line.startsWith(':')) {
+            // Comment/heartbeat line -> ignore
+            continue;
+          } else if (line === '') {
+            // Blank line -> dispatch one event
+            if (dataBuffer) {
+              const json = dataBuffer.trimEnd();
+              try {
+                const payload = JSON.parse(json);
+                const evt: StreamEvent = {};
+
+                if (eventName === 'meta') {
+                  evt.meta = payload;
+                } else if (eventName === 'chunk') {
+                  // { delta: "..." }
+                  evt.chunk = payload;
+                } else if (eventName === 'done') {
+                  evt.done = payload;
+                } else if (eventName === 'error') {
+                  // Server may send { error: "..." } or { message: "..." }
+                  const message =
+                    (payload && (payload.message || payload.error)) || 'Unknown error';
+                  evt.error = { message };
+                }
+
+                // Only yield recognized events
+                if (evt.meta || evt.chunk || evt.done || evt.error) {
+                  yield evt;
+                }
+              } catch (e) {
+                console.warn('SSE JSON parse failed:', json);
               }
-              
-              yield streamEvent;
-              currentEvent = ''; // Reset event type
-            } catch (e) {
-              console.warn('Failed to parse SSE data:', line);
             }
+
+            // Reset for next event
+            eventName = '';
+            dataBuffer = '';
           }
         }
       }
@@ -156,7 +186,7 @@ class AgentService {
     });
 
     const data = await response.json();
-    
+
     if (!response.ok) {
       throw new Error(data.message || 'Failed to create conversation');
     }
@@ -177,7 +207,7 @@ class AgentService {
     });
 
     const data = await response.json();
-    
+
     if (!response.ok) {
       throw new Error(data.message || 'Failed to get conversations');
     }
@@ -198,7 +228,7 @@ class AgentService {
     });
 
     const data = await response.json();
-    
+
     if (!response.ok) {
       throw new Error(data.message || 'Failed to get conversation');
     }
@@ -213,9 +243,7 @@ class AgentService {
     }
 
     let url = `${this.baseUrl}/conversations/${conversationId}/messages`;
-    if (limit) {
-      url += `?limit=${limit}`;
-    }
+    if (limit) url += `?limit=${limit}`;
 
     const response = await fetch(url, {
       headers: {
@@ -224,7 +252,7 @@ class AgentService {
     });
 
     const data = await response.json();
-    
+
     if (!response.ok) {
       throw new Error(data.message || 'Failed to get messages');
     }
@@ -247,7 +275,7 @@ class AgentService {
     });
 
     const data = await response.json();
-    
+
     if (!response.ok) {
       throw new Error(data.message || 'Failed to delete conversation');
     }

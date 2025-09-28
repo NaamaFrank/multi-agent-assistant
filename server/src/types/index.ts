@@ -105,3 +105,8 @@ export interface GenerateOptions {
   history: Array<{ role: 'user' | 'assistant'; content: string }>;
   abortSignal?: AbortSignal;
 }
+
+export type ClaudeMessage = {
+  role: 'user' | 'assistant';
+  content: string; 
+};

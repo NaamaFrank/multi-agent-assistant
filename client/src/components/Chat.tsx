@@ -70,10 +70,10 @@ export const Chat: React.FC<ChatProps> = ({ onLogout }) => {
       console.log('Messages received:', result.data);
       if (result.success && result.data) {
         const formattedMessages = result.data.map((msg: any) => ({
-          id: msg.messageId,  // Backend uses 'messageId', not 'id'
+          id: msg.messageId,  
           text: msg.content,
           isUser: msg.role === 'user',
-          timestamp: new Date(msg.ts)  // Backend uses 'ts', not 'timestamp'
+          timestamp: new Date(msg.ts)
         }));
         console.log('Formatted messages:', formattedMessages);
         setMessages(formattedMessages);
