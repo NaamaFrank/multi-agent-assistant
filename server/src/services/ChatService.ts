@@ -107,8 +107,7 @@ export const getUserConversations = async (
   return conversationsRepo.listByUser(userId);
 };
 
-// Helper function
-const updateConversationTitle = async (
+export const updateConversationTitle = async (
   conversationId: string, 
   userMessage: string,
   conversationsRepo: ConversationsRepo
