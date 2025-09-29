@@ -1,0 +1,286 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  /* Premium Color System - Dark First */
+  :root {
+    /* Light theme (secondary) */
+    --bg: 210 20% 98%;
+    --panel: 0 0% 100%;
+    --panel-hover: 210 40% 98%;
+    --muted: 215 16% 46%;
+    --border: 214 32% 91%;
+    --border-hover: 214 32% 85%;
+    
+    --accent: 262 84% 62%; /* Electric indigo */
+    --accent-2: 183 67% 47%; /* Teal */
+    --accent-muted: 262 84% 95%;
+    --warn: 37 92% 55%; /* Amber */
+    
+    --success: 156 55% 45%;
+    --error: 0 72% 55%;
+    
+    --fg: 222 20% 10%;
+    --fg-muted: 215 15% 40%;
+    --fg-inverse: 210 20% 96%;
+    
+    /* Shadcn compatibility */
+    --background: 0 0% 100%;
+    --foreground: 222.2 84% 4.9%;
+    --card: 0 0% 100%;
+    --card-foreground: 222.2 84% 4.9%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 222.2 84% 4.9%;
+    --primary: 262 84% 62%;
+    --primary-foreground: 210 40% 98%;
+    --secondary: 210 40% 96%;
+    --secondary-foreground: 222.2 84% 4.9%;
+    --muted: 210 40% 96%;
+    --muted-foreground: 215.4 16.3% 46.9%;
+    --accent: 262 84% 62%;
+    --accent-foreground: 210 40% 98%;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 214.3 31.8% 91.4%;
+    --input: 214.3 31.8% 91.4%;
+    --ring: 262 84% 62%;
+    --radius: 0.75rem;
+  }
+
+  /* Dark theme (primary) - Default */
+  [data-theme="dark"], .dark {
+    --bg: 225 15% 10%;
+    --panel: 225 15% 14%;
+    --panel-hover: 225 15% 18%;
+    --muted: 225 10% 65%;
+    --border: 225 10% 22%;
+    --border-hover: 225 10% 32%;
+    
+    --accent: 262 84% 62%;
+    --accent-2: 183 67% 47%;
+    --accent-muted: 262 84% 20%;
+    --warn: 37 92% 55%;
+    
+    --success: 156 55% 45%;
+    --error: 0 72% 55%;
+    
+    --fg: 210 20% 98%;
+    --fg-muted: 215 15% 75%;
+    --fg-inverse: 222 20% 10%;
+    
+    /* Shadcn compatibility in dark */
+    --background: 225 15% 10%;
+    --foreground: 210 20% 98%;
+    --card: 225 15% 14%;
+    --card-foreground: 210 20% 98%;
+    --popover: 225 15% 14%;
+    --popover-foreground: 210 20% 98%;
+    --primary: 262 84% 62%;
+    --primary-foreground: 210 40% 98%;
+    --secondary: 225 15% 18%;
+    --secondary-foreground: 210 20% 98%;
+    --muted: 225 15% 18%;
+    --muted-foreground: 215 15% 75%;
+    --accent: 262 84% 62%;
+    --accent-foreground: 210 40% 98%;
+    --destructive: 0 62.8% 50%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 225 10% 22%;
+    --input: 225 15% 18%;
+    --ring: 262 84% 62%;
+  }
+
+  /* Global base styles */
+  * {
+    @apply border-border;
+  }
+  
+  html {
+    font-feature-settings: "cv11", "ss01";
+    font-variation-settings: "opsz" auto;
+    scroll-behavior: smooth;
+  }
+  
+  body {
+    @apply bg-bg text-fg font-sans antialiased;
+    background: 
+      radial-gradient(circle at 20% 50%, hsl(var(--accent) / 0.05) 0%, transparent 50%),
+      radial-gradient(circle at 80% 20%, hsl(var(--accent-2) / 0.05) 0%, transparent 50%),
+      hsl(var(--bg));
+  }
+
+  /* Reduced motion preferences */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+
+  /* Focus styles */
+  *:focus-visible {
+    outline: 2px solid hsl(var(--accent));
+    outline-offset: 2px;
+  }
+}
+
+@layer components {
+  /* Glass surface utility */
+  .glass {
+    @apply bg-panel/80 backdrop-blur-md border border-border/50;
+    box-shadow: 
+      inset 0 1px 0 0 hsl(var(--fg) / 0.05),
+      0 8px 32px rgba(0, 0, 0, 0.12);
+  }
+
+  /* Glass hover states */
+  .glass-hover {
+    @apply transition-all duration-150 ease-out;
+  }
+  
+  .glass-hover:hover {
+    @apply bg-panel-hover/80 border-border-hover/60 shadow-soft;
+    transform: translateY(-1px);
+  }
+
+  /* Message bubble base styles */
+  .message-bubble {
+    @apply rounded-2xl px-4 py-3 max-w-[85%] sm:max-w-[75%] lg:max-w-[65%] text-sm leading-relaxed;
+  }
+
+  /* User message bubble */
+  .message-bubble-user {
+    @apply message-bubble;
+    background: linear-gradient(135deg, hsl(var(--accent) / 0.08) 0%, hsl(var(--accent-2) / 0.08) 100%);
+    border: 1px solid hsl(var(--border) / 0.2);
+    @apply text-fg ml-auto;
+  }
+
+  /* Assistant message bubble */
+  .message-bubble-assistant {
+    @apply message-bubble bg-panel border border-border/50 shadow-sm text-fg;
+    box-shadow: 
+      inset 0 1px 0 0 hsl(var(--fg) / 0.03),
+      0 2px 8px rgba(0, 0, 0, 0.08);
+  }
+
+  /* Skeleton shimmer effect */
+  .skeleton {
+    @apply bg-border/50 rounded animate-pulse relative overflow-hidden;
+  }
+  
+  .skeleton::before {
+    content: '';
+    @apply absolute inset-0 bg-gradient-to-r from-transparent via-fg/5 to-transparent;
+    animation: shimmer 2s linear infinite;
+  }
+
+  /* Typing dots */
+  .typing-dots {
+    @apply flex items-center gap-1;
+  }
+  
+  .typing-dot {
+    @apply w-1.5 h-1.5 bg-fg-muted rounded-full;
+    animation: typing-dots 1.4s ease-in-out infinite;
+  }
+  
+  .typing-dot:nth-child(2) {
+    animation-delay: 0.2s;
+  }
+  
+  .typing-dot:nth-child(3) {
+    animation-delay: 0.4s;
+  }
+
+  /* Code block improvements */
+  .code-block {
+    @apply bg-panel border border-border rounded-lg overflow-hidden;
+  }
+
+  .code-header {
+    @apply bg-border/30 px-4 py-2 text-xs font-medium text-fg-muted flex items-center justify-between;
+  }
+
+  .code-content {
+    @apply p-4 overflow-x-auto text-sm font-mono;
+  }
+
+  /* Floating input bar */
+  .floating-input {
+    @apply glass rounded-2xl p-4 shadow-glass;
+    backdrop-filter: blur(12px);
+  }
+
+  /* Premium button styles */
+  .btn-primary {
+    @apply bg-accent hover:bg-accent/90 text-fg-inverse font-medium px-4 py-2 rounded-xl;
+    @apply transition-all duration-150 ease-out shadow-sm hover:shadow-glow;
+    @apply focus:outline-none focus:ring-2 focus:ring-accent/50 focus:ring-offset-2 focus:ring-offset-bg;
+  }
+
+  .btn-secondary {
+    @apply bg-panel hover:bg-panel-hover border border-border hover:border-border-hover;
+    @apply text-fg font-medium px-4 py-2 rounded-xl transition-all duration-150 ease-out;
+    @apply focus:outline-none focus:ring-2 focus:ring-accent/50 focus:ring-offset-2 focus:ring-offset-bg;
+  }
+
+  /* Scroll area improvements */
+  .scroll-area {
+    scrollbar-width: thin;
+    scrollbar-color: hsl(var(--border)) transparent;
+  }
+
+  .scroll-area::-webkit-scrollbar {
+    width: 6px;
+  }
+
+  .scroll-area::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .scroll-area::-webkit-scrollbar-thumb {
+    background-color: hsl(var(--border));
+    border-radius: 3px;
+  }
+
+  .scroll-area::-webkit-scrollbar-thumb:hover {
+    background-color: hsl(var(--border-hover));
+  }
+}
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+}
+
+@keyframes toast-in-right {
+  from {
+    transform: translateX(calc(100% + 1rem));
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+
+@keyframes toast-out-right {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(calc(100% + 1rem));
+  }
+}
+
+.toast-enter {
+  animation: toast-in-right 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.toast-leave {
+  animation: toast-out-right 0.4s cubic-bezier(0.4, 0, 1, 1);
+}
