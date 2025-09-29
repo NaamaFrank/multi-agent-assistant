@@ -17,7 +17,7 @@ export class BedrockAdapter implements LlmAdapter {
   async *generate(
     input: string | ClaudeMessage[],
     abortSignal?: AbortSignal,
-    system?: string // optional system prompt
+    prompt?: string
   ): AsyncGenerator<string, LlmUsage> {
     try {
       // Normalize to messages
@@ -25,7 +25,7 @@ export class BedrockAdapter implements LlmAdapter {
         ? input
         : [{ role: 'user', content: input }];
 
-      const requestBody = this.prepareRequestBody(messages, system);
+      const requestBody = this.prepareRequestBody(messages, prompt);
 
       const command = new InvokeModelWithResponseStreamCommand({
         modelId: this.modelId,

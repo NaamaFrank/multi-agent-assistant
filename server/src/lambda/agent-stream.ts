@@ -1,5 +1,4 @@
 /// <reference path="../types/awslambda-globals.d.ts" />
-
 import { authenticate } from '../utils/auth';
 import {
   ensureConversation,
@@ -103,7 +102,7 @@ export const handler = awslambda.streamifyResponse(
           ? fullHistory.slice(0, -1)
           : fullHistory;
 
-      const agent: AgentKey = AgentRouter.route({
+      const agent: AgentKey = await AgentRouter.route({
         message,
       });
 
@@ -133,7 +132,6 @@ export const handler = awslambda.streamifyResponse(
               agent,
               fullAssistant
             );
-            // Send final meta w/ assistant id (optional)
             writeSSE(stream, 'meta', {
               conversationId: convo.conversationId,
               agent: agent,
