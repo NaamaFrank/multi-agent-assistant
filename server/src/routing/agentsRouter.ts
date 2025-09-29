@@ -39,7 +39,7 @@ export class AgentRouter {
    * Throws on invalid model output (so you can decide how to handle upstream).
    */
   static async route(
-    input: { message: string },
+    input: { message: string; history?: Array<ClaudeMessage> },
     abortSignal?: AbortSignal
   ): Promise<AgentKey> {
     const adapter = new BedrockAdapter(
@@ -60,12 +60,24 @@ export class AgentRouter {
       messages.push({ role: 'assistant', content: `{"agent":"${ex.label}"}` });
     }
 
+    // Build context from conversation history if available
+    let contextPrompt = `Classify the message below.\n\n`;
+    
+    if (input.history && input.history.length > 0) {
+      contextPrompt += `Conversation context (recent messages):\n`;
+      const recentHistory = input.history
+      for (const msg of recentHistory) {
+        contextPrompt += `${msg.role}: ${msg.content}\n`;
+      }
+      contextPrompt += `\n`;
+    }
+    
+    contextPrompt += `Current message:\n"""${input.message}"""\n` +
+      `Return only: {"agent":"<label>"}`;
+
     messages.push({
       role: 'user',
-      content:
-        `Classify the message below.\n\n` +
-        `Message:\n"""${input.message}"""\n` +
-        `Return only: {"agent":"<label>"}`
+      content: contextPrompt
     });
 
     // Stream once, concatenate

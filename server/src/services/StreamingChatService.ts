@@ -97,8 +97,11 @@ export class StreamingChatServiceImpl implements IStreamingChatService {
       // Get conversation history to check if this is the first message
       const isFirstMessage = history.length === 1;
 
-      // Route message to appropriate agent
-      const agent = await AgentRouter.route({ message: input.message });
+      // Route message to appropriate agent (include history for better context)
+      const agent = await AgentRouter.route({ 
+        message: input.message, 
+        history: history.slice(0, -1) // Previous messages only (current user msg already in input.message)
+      });
 
       // Send initial meta event
       if (callbacks.onMeta) {
@@ -118,7 +121,7 @@ export class StreamingChatServiceImpl implements IStreamingChatService {
       try {
         // Build message array for Claude
         const messages: ClaudeMessage[] = [
-          ...history.slice(-5),
+          ...history,
           { role: 'user', content: input.message }
         ];
 
