@@ -238,6 +238,17 @@ export class CrossRiverStack extends cdk.Stack {
       description: 'Handle conversation deletion API',
     });
 
+    const agentConversationUpdateFunction = new lambda.Function(this, 'AgentConversationUpdateFunction', {
+      runtime: lambda.Runtime.NODEJS_20_X,
+      handler: 'agent-conversation-update.handler',
+      code: lambda.Code.fromAsset(path.join(__dirname, '../../server/dist/lambda')),
+      role: lambdaRole,
+      environment: lambdaEnvironment,
+      layers: [sharedLayer],
+      timeout: cdk.Duration.seconds(30),
+      description: 'Handle conversation update API',
+    });
+
     const streamingFunction = new lambda.Function(this, 'StreamingFunction', {
       runtime: lambda.Runtime.NODEJS_20_X,
       handler: 'agent-stream.handler',
@@ -284,6 +295,7 @@ export class CrossRiverStack extends cdk.Stack {
     const agentConversationByIdIntegration = new integrations.HttpLambdaIntegration('AgentConversationByIdIntegration', agentConversationByIdFunction);
     const agentMessagesIntegration = new integrations.HttpLambdaIntegration('AgentMessagesIntegration', agentMessagesFunction);
     const agentConversationDeleteIntegration = new integrations.HttpLambdaIntegration('AgentConversationDeleteIntegration', agentConversationDeleteFunction);
+    const agentConversationUpdateIntegration = new integrations.HttpLambdaIntegration('AgentConversationUpdateIntegration', agentConversationUpdateFunction);
     const agentStreamIntegration = new integrations.HttpLambdaIntegration('AgentStreamIntegration', streamingFunction);
 
     this.httpApi.addRoutes({
@@ -306,7 +318,7 @@ export class CrossRiverStack extends cdk.Stack {
 
     this.httpApi.addRoutes({
       path: '/api/agent/conversations/{id}',
-      methods: [apigateway.HttpMethod.GET],
+      methods: [apigateway.HttpMethod.GET, apigateway.HttpMethod.PUT],
       integration: agentConversationByIdIntegration,
     });
 
