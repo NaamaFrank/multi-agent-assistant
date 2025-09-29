@@ -1,5 +1,5 @@
 // Authentication utilities
-import { verifyToken } from '../services/AuthService';
+import { authService } from '../services/AuthService';
 import { HttpError } from './errors';
 
 export interface AuthenticatedUser {
@@ -22,7 +22,7 @@ export async function authenticate(event: any): Promise<AuthenticatedUser> {
   const token = authHeader.substring(7);
 
   try {
-    const decoded = await verifyToken(token);
+    const decoded = await authService.verifyToken(token);
     
     return {
       id: decoded.userId?.toString(),

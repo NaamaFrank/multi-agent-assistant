@@ -1,7 +1,7 @@
 import { APIGatewayProxyHandlerV2 } from 'aws-lambda';
 import { createSuccessResponse, createErrorResponse } from '../utils/http';
 import { mapError } from '../utils/errors';
-import { login } from '../services/AuthService';
+import { authService } from '../services/AuthService';
 
 interface LoginRequest {
   email: string;
@@ -27,7 +27,7 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
     }
 
     // Authenticate user through service
-    const result = await login(email, password);
+    const result = await authService.login(email, password);
 
     console.log(`[${requestId}] User logged in successfully: ${email}`);
 

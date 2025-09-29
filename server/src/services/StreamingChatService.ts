@@ -1,10 +1,9 @@
-import { ConversationsRepo } from '../repositories';
-import { getConversationsRepo } from '../repositories/factory';
 import { BedrockAdapter } from '../adapters/BedrockAdapter';
 import { systemPrompt, type AgentKey, TITLE_PROMPT } from '../utils/prompts';
-import type { ClaudeMessage } from '../types';
+import type { ClaudeMessage, Conversation, Message } from '../types';
 import { AgentRouter } from '../routing/agentsRouter';
-import { ensureConversation, saveUserMessage, createAssistantMessageWithContent, getConversationHistory } from './ChatService';
+import { conversationService } from './ConversationService';
+import { messageService } from './MessageService';
 
 // Helper function to generate title using AI
 const generateTitle = async (userMessage: string): Promise<string> => {
@@ -46,21 +45,55 @@ export interface IStreamingChatService {
 }
 
 export class StreamingChatServiceImpl implements IStreamingChatService {
-  constructor(
-    private conversationsRepo: ConversationsRepo = getConversationsRepo()
-  ) {}
+
+
+  private async ensureConversation(userId: number, conversationId?: string): Promise<Conversation> {
+    if (conversationId) {
+      const existing = await conversationService.getConversationById(conversationId, userId);
+      if (existing) {
+        return existing;
+      }
+      throw new Error('Conversation not found or access denied');
+    }
+    
+    return conversationService.createConversation(userId);
+  }
+
+  private async getConversationHistory(
+    conversationId: string,
+    userId: number,
+    limit = 10
+  ): Promise<Array<{ role: 'user' | 'assistant'; content: string }>> {
+    const messages = await messageService.getMessages({
+      conversationId,
+      userId,
+      limit
+    });
+    
+    return messages
+      .filter((msg: Message) => msg.status === 'complete' && (msg.role === 'user' || msg.role === 'assistant'))
+      .map((msg: Message) => ({
+        role: msg.role as 'user' | 'assistant',
+        content: msg.content
+      }));
+  }
 
   async streamChat(input: StreamingChatInput, callbacks: StreamingChatCallbacks): Promise<void> {
     try {
       // Ensure conversation exists
-      const convo = await ensureConversation(input.userId, input.conversationId);
+      const convo = await this.ensureConversation(input.userId, input.conversationId);
       
       // Save user message
-      const userMsg = await saveUserMessage(convo.conversationId, input.message);
-      
-      // Get conversation history for context 
-      const history = await getConversationHistory(convo.conversationId);
-      
+      const userMsg = await messageService.addMessage({
+        conversationId: convo.conversationId,
+        userId: input.userId,
+        role: 'user',
+        content: input.message
+      });
+
+      // Get conversation history for context
+      const history = await this.getConversationHistory(convo.conversationId, input.userId);
+
       // Get conversation history to check if this is the first message
       const isFirstMessage = history.length === 1;
 
@@ -123,16 +156,18 @@ export class StreamingChatServiceImpl implements IStreamingChatService {
         }
 
         // Save the assistant message
-        const assistantMsg = await createAssistantMessageWithContent(
-          convo.conversationId,
-          agent,
-          fullAssistant
-        );
+        const assistantMsg = await messageService.addMessage({
+          conversationId: convo.conversationId,
+          userId: input.userId,
+          content: fullAssistant,
+          role: 'assistant',
+          agent
+        });
 
         // Update conversation title in database if one was generated
         if (titleFromStreaming && isFirstMessage) {
           try {
-            await this.conversationsRepo.updateMeta(convo.conversationId, { 
+            await conversationService.updateConversation(convo.conversationId, convo.userId, { 
               title: titleFromStreaming 
             });
           } catch (titleError) {

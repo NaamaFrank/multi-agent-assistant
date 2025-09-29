@@ -1,7 +1,7 @@
 import { APIGatewayProxyHandlerV2 } from 'aws-lambda';
 import { createSuccessResponse, createErrorResponse } from '../utils/http';
 import { mapError } from '../utils/errors';
-import { register } from '../services/AuthService';
+import { authService } from '../services/AuthService';
 
 interface RegisterRequest {
   email: string;
@@ -29,7 +29,7 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
     }
 
     // Register user through service
-    const result = await register(email, password, firstName, lastName);
+    const result = await authService.register(email, password, firstName, lastName);
 
     console.log(`[${requestId}] User registered successfully: ${email}`);
 
