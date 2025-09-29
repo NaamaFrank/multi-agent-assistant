@@ -1,6 +1,8 @@
 import { ConversationsRepo, MessagesRepo } from '../repositories';
 import { getConversationsRepo, getMessagesRepo } from '../repositories/factory';
 import { Conversation, Message } from '../types';
+import { BedrockAdapter } from '@/adapters/BedrockAdapter';
+import { TITLE_PROMPT } from '@/utils/prompts';
 
 export const ensureConversation = async (
   userId: number, 
@@ -30,9 +32,6 @@ export const saveUserMessage = async (
     content,
     status: 'complete'
   });
-
-  // Set conversation title from first user message
-  await updateConversationTitle(conversationId, content, conversationsRepo);
   
   return message;
 };
@@ -105,20 +104,4 @@ export const getUserConversations = async (
   conversationsRepo: ConversationsRepo = getConversationsRepo()
 ): Promise<Conversation[]> => {
   return conversationsRepo.listByUser(userId);
-};
-
-export const updateConversationTitle = async (
-  conversationId: string, 
-  userMessage: string,
-  conversationsRepo: ConversationsRepo
-): Promise<void> => {
-  const conversation = await conversationsRepo.get(conversationId);
-  if (conversation && conversation.title === 'New Conversation') {
-    // Set title from first user message, truncated to 80 chars
-    const title = userMessage.length > 80 
-      ? userMessage.substring(0, 77) + '...'
-      : userMessage;
-    
-    await conversationsRepo.updateMeta(conversationId, { title });
-  }
 };

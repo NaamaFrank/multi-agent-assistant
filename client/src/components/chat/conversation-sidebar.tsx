@@ -13,6 +13,7 @@ interface ConversationSidebarProps {
   conversations: Conversation[];
   currentConversation: Conversation | null;
   onSelectConversation: (conversation: Conversation) => void;
+  handleNewConversation: () => Promise<void>;
   isLoading: boolean;
   error: string | null;
 }
@@ -21,10 +22,11 @@ export function ConversationSidebar({
   conversations,
   currentConversation,
   onSelectConversation,
+  handleNewConversation,
   isLoading,
   error,
 }: ConversationSidebarProps) {
-  const { createNewConversation, deleteConversation } = useChat();
+  const {deleteConversation } = useChat();
   const { user, logout } = useAuth();
   
   // Modal states
@@ -32,15 +34,6 @@ export function ConversationSidebar({
   const [showEditModal, setShowEditModal] = useState(false);
   const [selectedConversation, setSelectedConversation] = useState<Conversation | null>(null);
   const [isDeletingConversation, setIsDeletingConversation] = useState(false);
-
-  const handleNewConversation = async () => {
-    try {
-      const newConversation = await createNewConversation();
-      onSelectConversation(newConversation);
-    } catch (error) {
-      console.error('Failed to create conversation:', error);
-    }
-  };
 
   const handleEditConversation = (conversation: Conversation, event: React.MouseEvent) => {
     event.stopPropagation();

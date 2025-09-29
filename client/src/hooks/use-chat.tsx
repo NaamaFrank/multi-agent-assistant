@@ -350,6 +350,17 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
           });
         }
 
+        if (event.title) {
+          // Update conversation title in real-time
+          dispatch({
+            type: 'UPDATE_CONVERSATION',
+            payload: {
+              id: targetConversationId,
+              updates: { title: event.title.title }
+            }
+          });
+        }
+
         if (event.done && assistantMessage) {
           // Now show the agent tag with the final message
           if (agentType) {

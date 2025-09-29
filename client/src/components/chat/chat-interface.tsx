@@ -20,6 +20,7 @@ export function ChatInterface() {
   } = useChat();
   
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const { createNewConversation } = useChat();
 
   // Load conversations on mount
   useEffect(() => {
@@ -36,6 +37,15 @@ export function ChatInterface() {
       </div>
     );
   }
+
+  const handleNewConversation = async () => {
+    try {
+      const newConversation = await createNewConversation();
+      selectConversation(newConversation);
+    } catch (error) {
+      console.error('Failed to create conversation:', error);
+    }
+  };
 
   return (
     <div className="flex flex-col h-screen bg-bg overflow-hidden">
@@ -59,6 +69,7 @@ export function ChatInterface() {
                   conversations={conversations}
                   currentConversation={currentConversation}
                   onSelectConversation={selectConversation}
+                  handleNewConversation={handleNewConversation}
                   isLoading={isLoading}
                   error={error}
                 />
@@ -99,7 +110,7 @@ export function ChatInterface() {
               <WelcomeScreen 
                 userName={user?.firstName || 'User'}
                 onStartNewChat={() => {
-                  // This will be handled by the chat window
+                  handleNewConversation();
                 }}
               />
             )}

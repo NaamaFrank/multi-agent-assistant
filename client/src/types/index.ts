@@ -70,6 +70,9 @@ export interface StreamEvent {
   chunk?: {
     delta: string;
   };
+  title?: {
+    title: string;
+  };
   done?: {
     usage: {
       inputTokens: number | null;

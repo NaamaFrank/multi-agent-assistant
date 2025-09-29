@@ -81,6 +81,8 @@ export class StreamingService {
                   evt.meta = payload;
                 } else if (eventName === 'chunk') {
                   evt.chunk = payload;
+                } else if (eventName === 'title') {
+                  evt.title = payload;
                 } else if (eventName === 'done') {
                   evt.done = payload;
                 } else if (eventName === 'error') {
@@ -91,7 +93,7 @@ export class StreamingService {
                 }
 
                 // Only yield recognized events
-                if (evt.meta || evt.chunk || evt.done || evt.error) {
+                if (evt.meta || evt.chunk || evt.title || evt.done || evt.error) {
                   yield evt;
                 }
               } catch (e) {

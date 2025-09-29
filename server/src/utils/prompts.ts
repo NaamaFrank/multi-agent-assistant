@@ -46,6 +46,23 @@ Role: Travel Planner.
 `.trim(),
 };
 
+export const TITLE_PROMPT = `
+Generate a concise conversation title (2-6 words) based on the user's first message.
+
+Rules:
+- Extract the core topic or intent
+- Use title case (capitalize first letter of each major word)
+- Avoid generic words like "Chat", "Question", "Help"
+- Be specific but brief
+- Examples:
+  • "How do I deploy Lambda functions?" → "Lambda Deployment"
+  • "Plan a trip to Japan in spring" → "Japan Spring Travel"
+  • "Debug my React component error" → "React Component Debug"
+  • "What's the weather like today?" → "Weather Inquiry"
+
+Return only the title, no quotes or explanations.
+`.trim();
+
 export function systemPrompt(agent: AgentKey = 'general'): string {
   const agentPart = AGENT_PROMPTS[agent] ?? '';
   return `${BASE_PROMPT}\n\n---\n\n${agentPart}`.trim();

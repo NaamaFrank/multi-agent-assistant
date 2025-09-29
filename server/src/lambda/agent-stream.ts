@@ -9,6 +9,7 @@ import {
 import { streamChatCompletion } from '../services/StreamingService';
 import type { AgentKey } from '../utils/prompts';
 import { AgentRouter } from '../routing/agentsRouter';
+import { getConversationsRepo } from '../repositories/factory';
 
 interface FunctionUrlEvent {
   queryStringParameters?: Record<string, string>;
@@ -126,12 +127,25 @@ export const handler = awslambda.streamifyResponse(
             fullAssistant += token;
             writeSSE(stream, 'chunk', { delta: token });
           },
-          onComplete: async () => {
+          onTitle: (title: string) => {
+            writeSSE(stream, 'title', { title });
+          },
+          onComplete: async (generatedTitle?: string) => {
             const assistantMsg = await createAssistantMessageWithContent(
               convo.conversationId,
               agent,
               fullAssistant
             );
+            
+            // Update conversation title in database if one was generated
+            if (generatedTitle && history.length === 0) {
+              try {
+                await getConversationsRepo().updateMeta(convo.conversationId, { title: generatedTitle });
+              } catch (titleError) {
+                console.error('Failed to save title to database:', titleError);
+              }
+            }
+            
             writeSSE(stream, 'meta', {
               conversationId: convo.conversationId,
               agent: agent,
@@ -147,7 +161,8 @@ export const handler = awslambda.streamifyResponse(
           }
         },
         history,
-        agent
+        agent,
+        convo.conversationId
       );
     } catch (err) {
       writeSSE(stream, 'error', { error: `Server error: ${String(err)}` });
