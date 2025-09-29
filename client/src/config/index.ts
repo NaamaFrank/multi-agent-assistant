@@ -1,14 +1,8 @@
 import type { ApiConfig } from '@/types';
 
-const isDevelopment = import.meta.env.DEV;
-
 export const apiConfig: ApiConfig = {
-  baseUrl: isDevelopment 
-    ? '/api' // Use Vite proxy in development
-    : 'https://zm66uq3qmi.execute-api.us-east-1.amazonaws.com/api',
-  streamingUrl: isDevelopment
-    ? 'https://g644tvwwomzjzt4gdsfzjt234i0hjlnc.lambda-url.us-east-1.on.aws'
-    : 'https://g644tvwwomzjzt4gdsfzjt234i0hjlnc.lambda-url.us-east-1.on.aws',
+  baseUrl: 'https://zm66uq3qmi.execute-api.us-east-1.amazonaws.com/api',
+  streamingUrl: 'https://g644tvwwomzjzt4gdsfzjt234i0hjlnc.lambda-url.us-east-1.on.aws',
   timeout: 30000,
 };
 
