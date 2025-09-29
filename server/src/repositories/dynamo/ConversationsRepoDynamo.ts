@@ -58,7 +58,7 @@ export class ConversationsRepoDynamo implements ConversationsRepo {
     }
   }
 
-  async create(userId: number, title?: string): Promise<Conversation> {
+  async create(userId: number, title: string): Promise<Conversation> {
     try {
       const conversationId = `conv_${userId}_${Date.now()}`;
       const now = new Date().toISOString();
@@ -66,7 +66,7 @@ export class ConversationsRepoDynamo implements ConversationsRepo {
       const conversation: Conversation = {
         conversationId,
         userId,
-        title: title || 'New Conversation',
+        title,
         createdAt: new Date(now),
         lastMessageAt: new Date(now),
       };

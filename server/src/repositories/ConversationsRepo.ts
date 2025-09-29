@@ -11,14 +11,14 @@ export class MemoryConversationsRepo implements ConversationsRepo {
   private conversations = new Map<string, Conversation>();
   private nextId = 1;
 
-  async create(userId: number, title?: string): Promise<Conversation> {
+  async create(userId: number, title: string): Promise<Conversation> {
     const conversationId = `conv_${this.nextId++}_${Date.now()}`;
     const now = new Date();
     
     const conversation: Conversation = {
       conversationId,
       userId,
-      title: title || 'New Conversation',
+      title: title,
       createdAt: now,
       lastMessageAt: now
     };

@@ -60,7 +60,7 @@ export const handler = async (event: APIGatewayProxyEventV2): Promise<APIGateway
         const conversationData = {
           conversationId: conversation.conversationId,
           userId: conversation.userId,
-          title: title || conversation.title || 'New Conversation',
+          title: title || conversation.title,
           createdAt: conversation.createdAt,
           lastMessageAt: conversation.lastMessageAt
         };

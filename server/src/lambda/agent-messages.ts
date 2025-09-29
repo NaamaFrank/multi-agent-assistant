@@ -56,7 +56,7 @@ export const handler = async (event: APIGatewayProxyEventV2): Promise<APIGateway
           return createErrorResponse(400, 'Role and content are required');
         }
 
-        // Only support user messages through this endpoint for now
+        // Only support user messages through this endpoint 
         if (requestBody.role === 'user') {
           const message = await saveUserMessage(conversationId, requestBody.content);
           return createSuccessResponse(message, 'Message added successfully');
