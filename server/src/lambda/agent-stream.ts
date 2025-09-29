@@ -1,15 +1,6 @@
 /// <reference path="../types/awslambda-globals.d.ts" />
 import { authenticate } from '../utils/auth';
-import {
-  ensureConversation,
-  saveUserMessage,
-  createAssistantMessageWithContent,
-  getConversationHistory
-} from '../services/ChatService';
-import { streamChatCompletion } from '../services/StreamingService';
-import type { AgentKey } from '../utils/prompts';
-import { AgentRouter } from '../routing/agentsRouter';
-import { getConversationsRepo } from '../repositories/factory';
+import { streamingChatService } from '../services/StreamingChatService';
 
 interface FunctionUrlEvent {
   queryStringParameters?: Record<string, string>;
@@ -75,11 +66,8 @@ export const handler = awslambda.streamifyResponse(
       // Try authentication with either header or token parameter
       let authResult: any;
       try {
-        if (authHeader) {
-          authResult = await authenticate({ headers: { authorization: authHeader } });
-        } else if (token) {
-          authResult = await authenticate({ headers: { authorization: `Bearer ${token}` } });
-        }
+        const authToken = authHeader || `Bearer ${token}`;
+        authResult = await authenticate({ headers: { authorization: authToken } });
       } catch (error) {
         writeSSE(stream, 'error', { error: `Authentication failed: ${error}` });
         stream.end();
@@ -93,64 +81,28 @@ export const handler = awslambda.streamifyResponse(
         return;
       }
 
-      const convo = await ensureConversation(userId, conversationId);
-      const userMsg = await saveUserMessage(convo.conversationId, message);
-
-      // Load prior history 
-      const fullHistory = await getConversationHistory(convo.conversationId);
-      const history =
-        fullHistory.length > 0 && fullHistory[fullHistory.length - 1].role === 'user'
-          ? fullHistory.slice(0, -1)
-          : fullHistory;
-
-      const agent: AgentKey = await AgentRouter.route({
-        message,
-      });
-
-      // Send meta ASAP so the UI can prep
-      writeSSE(stream, 'meta', {
-        conversationId: convo.conversationId,
-        agent: agent,                 
-        model: 'claude-3-5-haiku',    
-        userMessageId: userMsg.messageId,
-        assistantMessageId: ''
-      });
-      writeSSE(stream, 'chunk', { delta: '' });  
-
-
-      let fullAssistant = '';
-
-      await streamChatCompletion(
-        message,
+      await streamingChatService.streamChat(
+        {
+          message,
+          conversationId,
+          userId
+        },
         {
           onToken: (token: string) => {
-            fullAssistant += token;
             writeSSE(stream, 'chunk', { delta: token });
           },
           onTitle: (title: string) => {
             writeSSE(stream, 'title', { title });
           },
-          onComplete: async (generatedTitle?: string) => {
-            const assistantMsg = await createAssistantMessageWithContent(
-              convo.conversationId,
-              agent,
-              fullAssistant
-            );
-            
-            // Update conversation title in database if one was generated
-            if (generatedTitle && history.length === 0) {
-              try {
-                await getConversationsRepo().updateMeta(convo.conversationId, { title: generatedTitle });
-              } catch (titleError) {
-                console.error('Failed to save title to database:', titleError);
-              }
-            }
-            
+          onMeta: (meta: any) => {
+            writeSSE(stream, 'meta', meta);
+          },
+          onComplete: async (result) => {
             writeSSE(stream, 'meta', {
-              conversationId: convo.conversationId,
-              agent: agent,
-              userMessageId: userMsg.messageId,
-              assistantMessageId: assistantMsg.messageId
+              conversationId: result.conversationId,
+              agent: result.agent,
+              userMessageId: result.userMessageId,
+              assistantMessageId: result.assistantMessageId
             });
             writeSSE(stream, 'done', { usage: { inputTokens: null, outputTokens: null } });
             stream.end();
@@ -159,10 +111,7 @@ export const handler = awslambda.streamifyResponse(
             writeSSE(stream, 'error', { error: String(err) });
             stream.end();
           }
-        },
-        history,
-        agent,
-        convo.conversationId
+        }
       );
     } catch (err) {
       writeSSE(stream, 'error', { error: `Server error: ${String(err)}` });

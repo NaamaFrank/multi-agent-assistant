@@ -5,6 +5,7 @@ export interface ConversationsRepo {
   get(conversationId: string): Promise<Conversation | null>;
   updateMeta(conversationId: string, updates: Partial<Conversation>): Promise<void>;
   listByUser(userId: number): Promise<Conversation[]>;
+  delete(conversationId: string): Promise<boolean>;
 }
 
 export class MemoryConversationsRepo implements ConversationsRepo {
@@ -43,6 +44,10 @@ export class MemoryConversationsRepo implements ConversationsRepo {
     return Array.from(this.conversations.values())
       .filter(conv => conv.userId === userId)
       .sort((a, b) => b.lastMessageAt.getTime() - a.lastMessageAt.getTime());
+  }
+
+  async delete(conversationId: string): Promise<boolean> {
+    return this.conversations.delete(conversationId);
   }
 
   // Helper method for testing

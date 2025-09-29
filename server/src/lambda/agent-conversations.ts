@@ -3,7 +3,7 @@ import { APIGatewayProxyEventV2, APIGatewayProxyResult } from 'aws-lambda';
 import { authenticate } from '../utils/auth';
 import { getRequestInfo, createSuccessResponse, createErrorResponse } from '../utils/http';
 import { mapError } from '../utils/errors';
-import { getUserConversations, ensureConversation } from '../services/ChatService';
+import { conversationService } from '../services/ConversationService';
 
 export const handler = async (event: APIGatewayProxyEventV2): Promise<APIGatewayProxyResult> => {
   const { routeKey, rawPath, method, requestId } = getRequestInfo(event);
@@ -31,7 +31,7 @@ export const handler = async (event: APIGatewayProxyEventV2): Promise<APIGateway
           return createErrorResponse(400, 'Invalid user ID');
         }
         
-        const conversations = await getUserConversations(numericUserId);
+        const conversations = await conversationService.getConversations(numericUserId);
         return createSuccessResponse(conversations, 'Conversations retrieved successfully');
       }
 
@@ -54,16 +54,7 @@ export const handler = async (event: APIGatewayProxyEventV2): Promise<APIGateway
           return createErrorResponse(400, 'Invalid user ID');
         }
         
-        const conversation = await ensureConversation(numericUserId);
-        
-        // Return formatted conversation data
-        const conversationData = {
-          conversationId: conversation.conversationId,
-          userId: conversation.userId,
-          title: title || conversation.title,
-          createdAt: conversation.createdAt,
-          lastMessageAt: conversation.lastMessageAt
-        };
+        const conversationData = await conversationService.createConversation(numericUserId, title);
         
         return createSuccessResponse(conversationData, 'Conversation created successfully');
       }

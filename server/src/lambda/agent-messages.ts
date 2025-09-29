@@ -3,7 +3,8 @@ import { APIGatewayProxyEventV2, APIGatewayProxyResult } from 'aws-lambda';
 import { authenticate } from '../utils/auth';
 import { getRequestInfo, createSuccessResponse, createErrorResponse } from '../utils/http';
 import { mapError } from '../utils/errors';
-import { getConversation, getConversationMessages, saveUserMessage } from '../services/ChatService';
+import { messageService } from '../services/MessageService';
+import { conversationService } from '../services/ConversationService';
 
 export const handler = async (event: APIGatewayProxyEventV2): Promise<APIGatewayProxyResult> => {
   const { routeKey, rawPath, method, requestId } = getRequestInfo(event);
@@ -27,9 +28,15 @@ export const handler = async (event: APIGatewayProxyEventV2): Promise<APIGateway
       return createErrorResponse(400, 'Conversation ID is required');
     }
 
+    // Convert string userId to number
+    const numericUserId = parseInt(user.id, 10);
+    if (isNaN(numericUserId)) {
+      return createErrorResponse(400, 'Invalid user ID');
+    }
+
     // Verify user has access to conversation
-    const conversation = await getConversation(conversationId);
-    if (!conversation || conversation.userId.toString() !== user.id) {
+    const conversation = await conversationService.getConversationById(conversationId, numericUserId);
+    if (!conversation) {
       return createErrorResponse(404, 'Conversation not found');
     }
 
@@ -37,7 +44,10 @@ export const handler = async (event: APIGatewayProxyEventV2): Promise<APIGateway
     switch (routeKey) {
       case 'GET /api/agent/conversations/{id}/messages': {
         // List messages for conversation
-        const messages = await getConversationMessages(conversationId);
+        const messages = await messageService.getMessages({
+          conversationId,
+          userId: numericUserId
+        });
         return createSuccessResponse(messages, 'Messages retrieved successfully');
       }
 
@@ -58,7 +68,12 @@ export const handler = async (event: APIGatewayProxyEventV2): Promise<APIGateway
 
         // Only support user messages through this endpoint 
         if (requestBody.role === 'user') {
-          const message = await saveUserMessage(conversationId, requestBody.content);
+          const message = await messageService.addMessage({
+            conversationId,
+            userId: numericUserId,
+            content: requestBody.content,
+            role: 'user'
+          });
           return createSuccessResponse(message, 'Message added successfully');
         } else {
           return createErrorResponse(400, 'Only user messages can be added through this endpoint');

@@ -3,8 +3,7 @@ import { APIGatewayProxyEventV2, APIGatewayProxyResult } from 'aws-lambda';
 import { authenticate } from '../utils/auth';
 import { getRequestInfo, createSuccessResponse, createErrorResponse } from '../utils/http';
 import { mapError } from '../utils/errors';
-import { getConversation } from '../services/ChatService';
-import { getConversationsRepo } from '../repositories/factory';
+import { conversationService } from '../services/ConversationService';
 
 export const handler = async (event: APIGatewayProxyEventV2): Promise<APIGatewayProxyResult> => {
   const { routeKey, rawPath, method, requestId } = getRequestInfo(event);
@@ -27,6 +26,12 @@ export const handler = async (event: APIGatewayProxyEventV2): Promise<APIGateway
     // Authenticate user
     const user = await authenticate(event);
     
+    // Convert string userId to number
+    const numericUserId = parseInt(user.id, 10);
+    if (isNaN(numericUserId)) {
+      return createErrorResponse(400, 'Invalid user ID');
+    }
+    
     // Validate conversation ID
     const conversationId = event.pathParameters?.id;
     if (!conversationId) {
@@ -34,15 +39,14 @@ export const handler = async (event: APIGatewayProxyEventV2): Promise<APIGateway
     }
 
     // Get conversation and verify ownership
-    const conversation = await getConversation(conversationId);
+    const conversation = await conversationService.getConversationById(conversationId, numericUserId);
     
-    if (!conversation || conversation.userId.toString() !== user.id) {
+    if (!conversation) {
       return createErrorResponse(404, 'Conversation not found');
     }
 
     // Handle different methods
     if (routeKey === 'GET /api/agent/conversations/{id}') {
-      // GET - return conversation
       return createSuccessResponse(conversation, 'Conversation retrieved successfully');
     } else {
       // PUT - update conversation
@@ -65,13 +69,11 @@ export const handler = async (event: APIGatewayProxyEventV2): Promise<APIGateway
       }
 
       // Update conversation
-      const conversationsRepo = getConversationsRepo();
-      await conversationsRepo.updateMeta(conversationId, {
-        title: title.trim(),
-      });
-      
-      // Return the updated conversation
-      const updatedConversation = await conversationsRepo.get(conversationId);
+      const updatedConversation = await conversationService.updateConversation(
+        conversationId, 
+        numericUserId, 
+        { title: title.trim() }
+      );
       
       return createSuccessResponse(updatedConversation, 'Conversation updated successfully');
     }

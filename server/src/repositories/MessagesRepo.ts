@@ -5,6 +5,7 @@ export interface MessagesRepo {
   list(conversationId: string, options?: { limit?: number; before?: Date }): Promise<Message[]>;
   update(messageId: string, updates: Partial<Message>): Promise<void>;
   get(messageId: string): Promise<Message | null>;
+  delete(messageId: string): Promise<boolean>;
 }
 
 export class MemoryMessagesRepo implements MessagesRepo {
@@ -58,6 +59,27 @@ export class MemoryMessagesRepo implements MessagesRepo {
 
   async get(messageId: string): Promise<Message | null> {
     return this.messages.get(messageId) || null;
+  }
+
+  async delete(messageId: string): Promise<boolean> {
+    const message = this.messages.get(messageId);
+    if (!message) {
+      return false;
+    }
+    
+    // Remove from messages map
+    this.messages.delete(messageId);
+    
+    // Remove from conversation's message list
+    const conversationMessages = this.messagesByConversation.get(message.conversationId);
+    if (conversationMessages) {
+      const index = conversationMessages.indexOf(messageId);
+      if (index > -1) {
+        conversationMessages.splice(index, 1);
+      }
+    }
+    
+    return true;
   }
 
   // Helper method for testing
