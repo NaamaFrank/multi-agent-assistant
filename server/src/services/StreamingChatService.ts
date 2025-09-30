@@ -4,6 +4,10 @@ import type { ClaudeMessage, Conversation, Message } from '../types';
 import { AgentRouter } from '../routing/agentsRouter';
 import { conversationService } from './ConversationService';
 import { messageService } from './MessageService';
+import { ToolRunner } from './ToolRunnerService';
+import { buildDefaultToolRegistry } from '../tools';
+
+const MAX_TURNS = 15; 
 
 // Helper function to generate title using AI
 const generateTitle = async (userMessage: string): Promise<string> => {
@@ -28,6 +32,7 @@ export interface StreamingChatCallbacks {
   onToken: (token: string) => void;
   onTitle?: (title: string) => void;
   onMeta?: (meta: any) => void;
+  onTool?: (tool: { name: string, input: any }) => void;
   onComplete: (result: StreamingChatResult) => Promise<void>;
   onError: (error: Error) => void;
 }
@@ -45,8 +50,7 @@ export interface IStreamingChatService {
 }
 
 export class StreamingChatServiceImpl implements IStreamingChatService {
-
-
+  
   private async ensureConversation(userId: number, conversationId?: string): Promise<Conversation> {
     if (conversationId) {
       const existing = await conversationService.getConversationById(conversationId, userId);
@@ -62,20 +66,28 @@ export class StreamingChatServiceImpl implements IStreamingChatService {
   private async getConversationHistory(
     conversationId: string,
     userId: number,
-    limit = 10
+    maxTurns = MAX_TURNS
   ): Promise<Array<{ role: 'user' | 'assistant'; content: string }>> {
+    // Pull last N raw messages
     const messages = await messageService.getMessages({
       conversationId,
       userId,
-      limit
+      limit: maxTurns
     });
-    
-    return messages
-      .filter((msg: Message) => msg.status === 'complete' && (msg.role === 'user' || msg.role === 'assistant'))
-      .map((msg: Message) => ({
-        role: msg.role as 'user' | 'assistant',
-        content: msg.content
-      }));
+
+    // Filter to complete user/assistant only
+    let hist = messages
+      .filter((m: Message) => m.status === 'complete' && (m.role === 'user' || m.role === 'assistant'))
+      .map((m: Message) => ({ role: m.role as 'user' | 'assistant', content: m.content || 'No response from assistant' }));
+
+    // Ensure we start with a user turn
+    if (hist.length && hist[0].role === 'assistant') {
+      hist = hist.slice(1);
+    }
+
+    console.log('[DEBUG] Formatted history for Claude:', JSON.stringify(hist));
+
+    return hist;
   }
 
   async streamChat(input: StreamingChatInput, callbacks: StreamingChatCallbacks): Promise<void> {
@@ -94,13 +106,15 @@ export class StreamingChatServiceImpl implements IStreamingChatService {
       // Get conversation history for context
       const history = await this.getConversationHistory(convo.conversationId, input.userId);
 
-      // Get conversation history to check if this is the first message
+      // Check if this is the first message in the conversation
       const isFirstMessage = history.length === 1;
+      
+      console.log(`[DEBUG] Complete message array (${history.length} messages including current):`);
+      console.log(JSON.stringify(history, null, 2));
 
-      // Route message to appropriate agent (include history for better context)
+      // Route message to appropriate agent using conversation history
       const agent = await AgentRouter.route({ 
-        message: input.message, 
-        history: history.slice(0, -1) // Previous messages only (current user msg already in input.message)
+        history: history     
       });
 
       // Send initial meta event
@@ -119,18 +133,11 @@ export class StreamingChatServiceImpl implements IStreamingChatService {
 
       // Stream AI response directly with Bedrock
       try {
-        // Build message array for Claude
-        const messages: ClaudeMessage[] = [
-          ...history,
-          { role: 'user', content: input.message }
-        ];
+        // Build message array for Claude - current user message is already in history
+        const messages: ClaudeMessage[] = history;
 
-        const adapter = new BedrockAdapter();
-        const gen = adapter.generate(messages, /* abortSignal */ undefined, systemPrompt(agent));
-
-        // Generate title if this is the first message
+        // Title generation
         let titlePromise: Promise<string | null> = Promise.resolve(null);
-        
         if (convo.conversationId && isFirstMessage && callbacks.onTitle) {
           titlePromise = generateTitle(input.message).catch((error: any) => {
             console.error('Failed to generate title:', error);
@@ -138,12 +145,36 @@ export class StreamingChatServiceImpl implements IStreamingChatService {
           });
         }
 
-        // Stream AI response tokens
-        for await (const token of gen) {
-          fullAssistant += token;
-          callbacks.onToken(token);
+        // Use ToolRunner with BedrockAdapter and registry
+        const adapter = new BedrockAdapter();
+        const registry = buildDefaultToolRegistry();
+        const runner = new ToolRunner(adapter, registry);
+
+        // We want to keep SSE feeling live. ToolRunner emits final round text;
+        // we chunk it a bit so the client receives multiple 'chunk' events.
+        const emitInChunks = (text: string) => {
+          const CHUNK = 120;
+          for (let i = 0; i < text.length; i += CHUNK) {
+            const piece = text.slice(i, i + CHUNK);
+            fullAssistant += piece;
+            callbacks.onToken(piece);
+          }
+        };
+
+        const { text: finalText, usage } = await runner.runWithTools(
+          messages,
+          {
+            system: systemPrompt(agent),
+            onStreamToken: (t) => emitInChunks(t),
+            onToolUse: callbacks.onTool ? (tool) => callbacks.onTool!(tool) : undefined
+          }
+        );
+
+        // Fallback: if nothing was streamed, stream the finalText now.
+        if (!fullAssistant && finalText) {
+          emitInChunks(finalText);
         }
-        
+
         // Handle title after response completes
         let titleFromStreaming: string | null = null;
         if (convo.conversationId && isFirstMessage && callbacks.onTitle) {
@@ -178,7 +209,17 @@ export class StreamingChatServiceImpl implements IStreamingChatService {
           }
         }
 
-        // Call the completion callback with all results
+        // Emit final meta 
+        if (callbacks.onMeta) {
+          callbacks.onMeta({
+            conversationId: convo.conversationId,
+            agent,
+            model: process.env.MODEL_ID,
+            usage
+          });
+        }
+
+        // Complete
         await callbacks.onComplete({
           conversationId: convo.conversationId,
           userMessageId: userMsg.messageId,

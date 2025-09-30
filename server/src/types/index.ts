@@ -106,7 +106,45 @@ export interface GenerateOptions {
   abortSignal?: AbortSignal;
 }
 
-export type ClaudeMessage = {
+export type AnthropicBlock =
+  | { type: 'text'; text: string }
+  | { type: 'tool_use'; id: string; name: string; input: any }
+  | { type: 'tool_result'; tool_use_id: string; is_error?: boolean; content?: string };
+
+export interface ClaudeMessage {
   role: 'user' | 'assistant';
-  content: string; 
-};
+  // can be plain string or an array of Anthropic content blocks
+  content: string | AnthropicBlock[];
+}
+
+//Tools types
+export type Json = null | boolean | number | string | Json[] | { [k: string]: Json };
+
+export interface ToolSchema {
+  name: string;
+  description: string;
+  input_schema: {
+    type: "object";
+    properties: Record<string, any>;
+    required?: string[];
+    additionalProperties?: boolean;
+  };
+}
+
+export interface ToolCall {
+  id: string;
+  name: string;
+  input: Json;
+}
+
+export interface ToolResult {
+  tool_use_id: string;
+  content: Json;         // JSON-serializable result
+  isError?: boolean;   
+}
+
+export interface Tool {
+  name: string;
+  schema(): ToolSchema;
+  execute(input: Json): Promise<ToolResult>;
+}

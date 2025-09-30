@@ -97,6 +97,9 @@ export const handler = awslambda.streamifyResponse(
           onMeta: (meta: any) => {
             writeSSE(stream, 'meta', meta);
           },
+          onTool: (tool: { name: string, input: any }) => {
+            writeSSE(stream, 'tool', { tool: tool.name, input: tool.input });
+          },
           onComplete: async (result) => {
             writeSSE(stream, 'meta', {
               conversationId: result.conversationId,

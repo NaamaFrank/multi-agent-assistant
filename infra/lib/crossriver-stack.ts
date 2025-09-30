@@ -36,6 +36,18 @@ export class CrossRiverStack extends cdk.Stack {
       },
     });
 
+    // Tavily API key secret 
+    const tavilySecret = new secretsmanager.Secret(this, 'TavilyApiKey', {
+      secretName: `/crossriver/${environment}/tavily-api-key`,
+      description: 'Tavily Search API key for web_search tool',
+      generateSecretString: {
+        secretStringTemplate: '{}',
+        generateStringKey: 'key',
+        excludeCharacters: '"@/\\\'',
+        passwordLength: 48,
+      },
+    });
+
     const modelId = new ssm.StringParameter(this, 'ModelId', {
       parameterName: `/crossriver/${environment}/model-id`,
       stringValue: 'us.anthropic.claude-3-5-haiku-20241022-v1:0',
@@ -142,7 +154,8 @@ export class CrossRiverStack extends cdk.Stack {
               ],
               resources: [
                 jwtSecret.secretArn,
-              ],
+                tavilySecret.secretArn,
+              ].filter(Boolean) as string[],
             }),
           ],
         }),
@@ -163,6 +176,7 @@ export class CrossRiverStack extends cdk.Stack {
       JWT_SECRET_ARN: jwtSecret.secretArn,
       MODEL_ID_PARAM: modelId.parameterName,
       MODEL_ID: 'us.anthropic.claude-3-5-haiku-20241022-v1:0',
+      TAVILY_SECRET_ARN: tavilySecret.secretArn,
     };
 
     // Lambda layer for shared dependencies

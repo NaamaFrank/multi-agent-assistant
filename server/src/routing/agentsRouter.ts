@@ -5,87 +5,79 @@ import { ClaudeMessage } from '@/types';
 
 const ALLOWED: ReadonlyArray<AgentKey> = ['general', 'coding', 'security', 'travel'];
 
-// Tiny in-context examples to pin behavior (helps determinism on temp>0)
-const FEWSHOTS: Array<{ user: string; label: AgentKey }> = [
-  { user: 'My lambda hits a timeout; how to fix?', label: 'coding' },
-  { user: 'is HSTS enough to stop MITM?', label: 'security' },
-  { user: '3 days in Tokyo—what should I see?', label: 'travel' },
-  { user: 'what\'s the weather today?', label: 'general' },
-];
-
 // Robust JSON extractor: tolerate models that add stray text by slicing first {...} block
 function tryParseAgent(jsonish: string): AgentKey {
-  const start = jsonish.indexOf('{');
-  const end = jsonish.lastIndexOf('}');
-  if (start === -1 || end === -1 || end <= start) {
-    throw new Error(`Router returned non-JSON: ${jsonish.slice(0, 160)}`);
+  console.log(`[DEBUG] Raw router response: "${jsonish.trim()}"`);
+  
+  // Try to extract JSON object using regex for more robustness
+  const jsonRegex = /{[\s\S]*?}/;
+  const match = jsonish.match(jsonRegex);
+  
+  if (!match) {
+    // Default fallback if no JSON-like structure is found
+    console.error(`Router returned non-JSON: "${jsonish.slice(0, 160)}"`);
+    return 'general';
   }
+  
   let parsed: unknown;
   try {
-    parsed = JSON.parse(jsonish.slice(start, end + 1));
-  } catch {
-    throw new Error(`Router returned invalid JSON: ${jsonish.slice(0, 160)}`);
+    // Attempt to parse the extracted JSON
+    parsed = JSON.parse(match[0]);
+  } catch (e) {
+    console.error(`Router returned invalid JSON: "${match[0]}"`, e);
+    return 'general';
   }
+  
   const agent = (parsed as any)?.agent;
   if (!ALLOWED.includes(agent)) {
-    throw new Error(`Router returned invalid agent: ${String(agent)}`);
+    console.error(`Router returned invalid agent: "${String(agent)}", defaulting to general`);
+    return 'general';
   }
+  
   return agent as AgentKey;
 }
 
 export class AgentRouter {
   /**
    * Classify a user message into one of the allowed agents using Claude on Bedrock.
-   * Throws on invalid model output (so you can decide how to handle upstream).
+   * Uses a simplified approach that just takes the last few messages.
    */
   static async route(
-    input: { message: string; history?: Array<ClaudeMessage> },
+    input: { history: Array<ClaudeMessage> },
     abortSignal?: AbortSignal
   ): Promise<AgentKey> {
+    console.log("[Router] Starting agent routing");
     const adapter = new BedrockAdapter(
       process.env.MODEL_ID 
     );
 
-    // Build message array with fewshots + the actual message
-    const messages: Array<ClaudeMessage> = [];
-
-    for (const ex of FEWSHOTS) {
-      messages.push({
-        role: 'user',
-        content:
-          `Classify the message below.\n\n` +
-          `Message:\n"""${ex.user}"""\n` +
-          `Return only: {"agent":"<label>"}`
-      });
-      messages.push({ role: 'assistant', content: `{"agent":"${ex.label}"}` });
+    // Check if we have any history
+    if (!input.history || input.history.length === 0) {
+      console.log("[Router] No messages to route, defaulting to general agent");
+      return 'general';
     }
 
-    // Build context from conversation history if available
-    let contextPrompt = `Classify the message below.\n\n`;
-    
-    if (input.history && input.history.length > 0) {
-      contextPrompt += `Conversation context (recent messages):\n`;
-      const recentHistory = input.history
-      for (const msg of recentHistory) {
-        contextPrompt += `${msg.role}: ${msg.content}\n`;
+    try {
+      // Just use the most recent messages (up to 4) to avoid token limits
+      const recentHistory = input.history.slice(-4);
+      console.log(`[Router] Using ${recentHistory.length} recent messages for routing`);
+      
+      // Stream once, concatenate with timeout protection
+      let output = '';
+      for await (const tok of adapter.generate(recentHistory, abortSignal, ROUTER_PROMPT)) {
+        output += tok;
       }
-      contextPrompt += `\n`;
+
+      // Check for empty output
+      if (!output || output.trim() === '') {
+        console.log("[Router] Empty response from adapter, defaulting to general agent");
+        return 'general';
+      }
+
+      return tryParseAgent(output);
+    } catch (error) {
+      console.error("[Router] Error during routing:", error);
+      return 'general'; // Default to general agent on any error
     }
-    
-    contextPrompt += `Current message:\n"""${input.message}"""\n` +
-      `Return only: {"agent":"<label>"}`;
-
-    messages.push({
-      role: 'user',
-      content: contextPrompt
-    });
-
-    // Stream once, concatenate
-    let output = '';
-    for await (const tok of adapter.generate(messages, abortSignal, ROUTER_PROMPT)) {
-      output += tok;
-    }
-
-    return tryParseAgent(output);
   }
 }
