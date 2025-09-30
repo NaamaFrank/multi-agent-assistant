@@ -124,10 +124,6 @@ export function ConversationSidebar({
               <p className="text-sm text-fg-muted">Loading conversations...</p>
             </div>
           </div>
-        ) : error ? (
-          <div className="p-4 text-center text-red-400 text-sm glass rounded-xl m-4 border border-red-400/20">
-            {error}
-          </div>
         ) : conversations.length === 0 ? (
           <div className="p-6 text-center">
             <div className="glass rounded-xl p-6 border border-border/50">
