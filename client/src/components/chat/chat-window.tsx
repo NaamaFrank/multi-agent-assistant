@@ -33,7 +33,8 @@ export function ChatWindow({ conversation, className }: ChatWindowProps) {
     isLoadingConversation,
     streamingMessageId,
     sendMessage, 
-    stopStreaming 
+    stopStreaming,
+    toolInUse
   } = useChat();
   
   const [input, setInput] = useState('');
@@ -44,6 +45,23 @@ export function ChatWindow({ conversation, className }: ChatWindowProps) {
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
+  
+  // Debug tool usage state
+  useEffect(() => {
+    console.log('Current toolInUse state:', toolInUse);
+  }, [toolInUse]);
+  
+  // Reset toolInUse when streaming stops
+  useEffect(() => {
+    if (!isStreaming && toolInUse) {
+      // Add a small delay to allow for any final UI updates
+      const timer = setTimeout(() => {
+        console.log('Streaming stopped, clearing tool in use');
+        stopStreaming(); // This will reset toolInUse state
+      }, 500);
+      return () => clearTimeout(timer);
+    }
+  }, [isStreaming, toolInUse, stopStreaming]);
 
   // Focus input on mount
   useEffect(() => {
@@ -74,6 +92,30 @@ export function ChatWindow({ conversation, className }: ChatWindowProps) {
 
   return (
     <div className={cn('flex flex-col h-full bg-surface/20', className)}>
+      {/* Tool use indicator */}
+      <AnimatePresence>
+        {toolInUse && (
+          <motion.div
+            key="tool-indicator"
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            transition={{ duration: 0.3 }}
+            className="absolute left-1/2 top-4 z-20 -translate-x-1/2 bg-surface/90 px-6 py-3 rounded-2xl shadow-lg border border-primary/30 flex items-center gap-3"
+          >
+            <LoadingSpinner className="h-5 w-5 text-primary animate-spin" />
+            <span className="text-sm font-semibold text-primary">
+              AI is using tool: <span className="font-bold">{toolInUse.tool}</span>
+              {toolInUse.parameters?.query && (
+                <span className="ml-2 text-xs opacity-70">
+                  "{toolInUse.parameters.query}"
+                </span>
+              )}
+            </span>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Header */}
       <div className="px-6 py-6 glass border-b border-border/50">
         <h2 className="text-xl font-bold text-fg">
@@ -240,16 +282,6 @@ export function ChatWindow({ conversation, className }: ChatWindowProps) {
                 disabled={isStreaming}
                 className="w-full bg-transparent border-0 outline-0 text-fg placeholder-fg-muted text-sm py-2 px-0 resize-none min-h-[1.5rem] max-h-32"
               />
-              {isStreaming && (
-                <motion.button
-                  whileHover={{ scale: 1.1 }}
-                  whileTap={{ scale: 0.9 }}
-                  onClick={stopStreaming}
-                  className="absolute right-0 top-1/2 -translate-y-1/2 h-8 w-8 p-0 glass-hover rounded-lg flex items-center justify-center"
-                >
-                  <StopCircle className="h-4 w-4 text-red-400" />
-                </motion.button>
-              )}
             </div>
             <motion.button
               onClick={handleSend}

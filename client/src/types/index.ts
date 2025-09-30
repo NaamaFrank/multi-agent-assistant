@@ -73,6 +73,11 @@ export interface StreamEvent {
   title?: {
     title: string;
   };
+  tool_use?: {
+    tool: string;
+    parameters: any;
+    status?: 'executing';
+  };
   done?: {
     usage: {
       inputTokens: number | null;
@@ -111,6 +116,8 @@ export interface ChatState {
   error: string | null;
   // Cache for messages by conversation ID
   messageCache: Record<string, Message[]>;
+  // Tool use indicator
+  toolInUse?: { tool: string; parameters: any } | null;
 }
 
 export interface AuthState {

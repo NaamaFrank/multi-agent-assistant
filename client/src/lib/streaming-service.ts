@@ -3,12 +3,13 @@ import { apiConfig, STORAGE_KEYS } from '@/config';
 
 export class StreamingService {
   /**
-   * Stream chat completion using fetch with ReadableStream (like client-v1)
+   * Stream chat completion using fetch with ReadableStream
+   * @param message The message to send
+   * @param conversationId Optional conversation ID
    */
   async *streamChat(
     message: string,
-    conversationId?: string,
-    signal?: AbortSignal
+    conversationId?: string
   ): AsyncGenerator<StreamEvent, void, unknown> {
     const token = localStorage.getItem(STORAGE_KEYS.JWT_TOKEN);
     if (!token) {
@@ -18,8 +19,7 @@ export class StreamingService {
     const url = this.buildStreamingUrl(message, conversationId, token);
 
     const response = await fetch(url, {
-      credentials: 'omit',
-      signal
+      credentials: 'omit'
     });
 
     if (!response.ok) {
@@ -83,6 +83,9 @@ export class StreamingService {
                   evt.chunk = payload;
                 } else if (eventName === 'title') {
                   evt.title = payload;
+                } else if (eventName === 'tool_use' || eventName === 'tool') {
+                  // Handle both 'tool_use' and 'tool' event names for backward compatibility
+                  evt.tool_use = payload;
                 } else if (eventName === 'done') {
                   evt.done = payload;
                 } else if (eventName === 'error') {
@@ -93,7 +96,7 @@ export class StreamingService {
                 }
 
                 // Only yield recognized events
-                if (evt.meta || evt.chunk || evt.title || evt.done || evt.error) {
+                if (evt.meta || evt.chunk || evt.title || evt.tool_use || evt.done || evt.error) {
                   yield evt;
                 }
               } catch (e) {
@@ -132,8 +135,7 @@ export class StreamingService {
    * Stop current streaming session
    */
   stop(): void {
-    // This method is kept for compatibility but not needed for fetch-based streaming
-    // The AbortController signal passed to streamChat handles cancellation
+    // No-op - kept for API compatibility
   }
 }
 

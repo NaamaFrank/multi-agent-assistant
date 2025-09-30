@@ -24,7 +24,8 @@ type ChatAction =
   | { type: 'ADD_CONVERSATION'; payload: Conversation }
   | { type: 'UPDATE_CONVERSATION'; payload: { id: string; updates: Partial<Conversation> } }
   | { type: 'DELETE_CONVERSATION'; payload: string }
-  | { type: 'RESET_CHAT' };
+  | { type: 'RESET_CHAT' }
+  | { type: 'SET_TOOL_IN_USE'; payload: { tool: string; parameters: any } | null };
 
 const initialState: ChatState = {
   conversations: [],
@@ -36,6 +37,7 @@ const initialState: ChatState = {
   streamingMessageId: null,
   error: null,
   messageCache: {},
+  toolInUse: null,
 };
 
 function chatReducer(state: ChatState, action: ChatAction): ChatState {
@@ -145,6 +147,9 @@ function chatReducer(state: ChatState, action: ChatAction): ChatState {
     case 'RESET_CHAT':
       return initialState;
     
+    case 'SET_TOOL_IN_USE':
+      return { ...state, toolInUse: action.payload };
+    
     default:
       return state;
   }
@@ -157,14 +162,17 @@ interface ChatContextType extends ChatState {
   createNewConversation: (title?: string) => Promise<Conversation>;
   updateConversation: (id: string, updates: Partial<Conversation>) => Promise<void>;
   deleteConversation: (id: string) => Promise<void>;
-  
+
   // Message methods
   sendMessage: (content: string, conversationId?: string) => Promise<void>;
   stopStreaming: () => void;
-  
+
   // Utility methods
   clearError: () => void;
   reset: () => void;
+
+  // Tool use indicator
+  toolInUse: { tool: string; parameters: any } | null;
 }
 
 const ChatContext = createContext<ChatContextType | undefined>(undefined);
@@ -312,86 +320,97 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
       let assistantMessage: Message | null = null;
       let agentType = undefined; // Store agent type to apply at the end
 
-      // Only set streaming when we actually start the async generator
-      for await (const event of streamingService.streamChat(content, targetConversationId)) {
-        // Set streaming state only when we get the first event
-        if (!assistantMessage) {
-          dispatch({ type: 'SET_STREAMING', payload: { isStreaming: true } });
-        }
-
-        if (event.meta) {
-          // Create assistant message when we get meta info
+      try {
+        // Stream chat
+        for await (const event of streamingService.streamChat(content, targetConversationId)) {
+          // Set streaming state only when we get the first event
           if (!assistantMessage) {
-            assistantMessage = {
-              messageId: event.meta.assistantMessageId || `temp-assistant-${Date.now()}`,
-              conversationId: targetConversationId,
-              role: 'assistant',
-              content: '',
-              timestamp: new Date().toISOString(),
-              status: 'complete',
-            };
-            dispatch({ type: 'ADD_MESSAGE', payload: assistantMessage });
-            dispatch({ type: 'SET_STREAMING', payload: { isStreaming: true, messageId: assistantMessage.messageId } });
+            dispatch({ type: 'SET_STREAMING', payload: { isStreaming: true } });
           }
-          
-          if (event.meta.agent) {
-            agentType = event.meta.agent; // Store for later
-          }
-        }
 
-        if (event.chunk && assistantMessage) {
-          accumulatedContent += event.chunk.delta;
-          dispatch({ 
-            type: 'UPDATE_MESSAGE', 
-            payload: { 
-              id: assistantMessage.messageId,
-              updates: { content: accumulatedContent } 
-            } 
-          });
-        }
-
-        if (event.title) {
-          // Update conversation title in real-time
-          dispatch({
-            type: 'UPDATE_CONVERSATION',
-            payload: {
-              id: targetConversationId,
-              updates: { title: event.title.title }
+          if (event.meta) {
+            // Create assistant message when we get meta info
+            if (!assistantMessage) {
+              assistantMessage = {
+                messageId: event.meta.assistantMessageId || `temp-assistant-${Date.now()}`,
+                conversationId: targetConversationId,
+                role: 'assistant',
+                content: '',
+                timestamp: new Date().toISOString(),
+                status: 'complete',
+              };
+              dispatch({ type: 'ADD_MESSAGE', payload: assistantMessage });
+              dispatch({ type: 'SET_STREAMING', payload: { isStreaming: true, messageId: assistantMessage.messageId } });
             }
-          });
-        }
+            
+            if (event.meta.agent) {
+              agentType = event.meta.agent; // Store for later
+            }
+          }
 
-        if (event.done && assistantMessage) {
-          // Now show the agent tag with the final message
-          if (agentType) {
+          if (event.chunk && assistantMessage) {
+            accumulatedContent += event.chunk.delta;
             dispatch({ 
               type: 'UPDATE_MESSAGE', 
               payload: { 
                 id: assistantMessage.messageId,
-                updates: { agent: agentType } 
+                updates: { content: accumulatedContent } 
               } 
             });
           }
-          dispatch({ type: 'SET_STREAMING', payload: { isStreaming: false } });
-          break;
-        }
 
-        if (event.error) {
-          dispatch({ type: 'SET_STREAMING', payload: { isStreaming: false } });
-          const errorMessage = event.error.message || event.error.error || 'Unknown streaming error';
-          dispatch({ type: 'SET_ERROR', payload: errorMessage });
-          toast({
-            title: 'Streaming Error',
-            description: errorMessage,
-            variant: 'destructive',
-          });
-          break;
+          if (event.title) {
+            // Update conversation title in real-time
+            dispatch({
+              type: 'UPDATE_CONVERSATION',
+              payload: {
+                id: targetConversationId,
+                updates: { title: event.title.title }
+              }
+            });
+          }
+
+          if (event.tool_use) {
+            dispatch({ type: 'SET_TOOL_IN_USE', payload: { tool: event.tool_use.tool, parameters: event.tool_use.parameters } });
+          }
+
+          if (event.done && assistantMessage) {
+            // Now show the agent tag with the final message
+            if (agentType) {
+              dispatch({ 
+                type: 'UPDATE_MESSAGE', 
+                payload: { 
+                  id: assistantMessage.messageId,
+                  updates: { agent: agentType } 
+                } 
+              });
+            }
+            dispatch({ type: 'SET_STREAMING', payload: { isStreaming: false } });
+            break;
+          }
+
+          if (event.error) {
+            dispatch({ type: 'SET_STREAMING', payload: { isStreaming: false } });
+            const errorMessage = event.error.message || event.error.error || 'Unknown streaming error';
+            dispatch({ type: 'SET_ERROR', payload: errorMessage });
+            break;
+          }
         }
+      } catch (error) {
+        // This will handle fetch errors or other exceptions
+        dispatch({ type: 'SET_STREAMING', payload: { isStreaming: false } });
+        const message = error instanceof Error ? error.message : 'Error sending message';
+        dispatch({ type: 'SET_ERROR', payload: message });
+        toast({
+          title: 'Error',
+          description: message,
+          variant: 'destructive',
+        });
+      } finally {
+        dispatch({ type: 'SET_TOOL_IN_USE', payload: null });
       }
-
-    } catch (error) {
-      dispatch({ type: 'SET_STREAMING', payload: { isStreaming: false } });
-      const message = error instanceof Error ? error.message : 'Failed to send message';
+    } catch (outerError) {
+      const message = outerError instanceof Error ? outerError.message : 'Failed to send message';
       dispatch({ type: 'SET_ERROR', payload: message });
       toast({
         title: 'Error',
@@ -405,6 +424,7 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
   const stopStreaming = useCallback(() => {
     streamingService.stop();
     dispatch({ type: 'SET_STREAMING', payload: { isStreaming: false } });
+    dispatch({ type: 'SET_TOOL_IN_USE', payload: null });
   }, []);
 
   // Clear error
@@ -429,6 +449,7 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
     stopStreaming,
     clearError,
     reset,
+    toolInUse: state.toolInUse ?? null,
   };
 
   return (
