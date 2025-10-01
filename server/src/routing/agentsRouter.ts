@@ -58,8 +58,8 @@ export class AgentRouter {
     }
 
     try {
-      // Just use the most recent messages (up to 4) to avoid token limits
-      const recentHistory = input.history.slice(-4);
+      // Just use the most recent messages (up to 10) to avoid token limits
+      const recentHistory = input.history.slice(-10);
       console.log(`[Router] Using ${recentHistory.length} recent messages for routing`);
       
       // Stream once, concatenate with timeout protection

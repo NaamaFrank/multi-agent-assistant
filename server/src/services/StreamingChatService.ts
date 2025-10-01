@@ -7,7 +7,7 @@ import { messageService } from './MessageService';
 import { ToolRunner } from './ToolRunnerService';
 import { buildDefaultToolRegistry } from '../tools';
 
-const MAX_TURNS = 15; 
+const MAX_TURNS = 50; 
 
 // Helper function to generate title using AI
 const generateTitle = async (userMessage: string): Promise<string> => {
@@ -77,12 +77,15 @@ export class StreamingChatServiceImpl implements IStreamingChatService {
 
     // Filter to complete user/assistant only
     let hist = messages
-      .filter((m: Message) => m.status === 'complete' && (m.role === 'user' || m.role === 'assistant'))
+      .filter((m: Message) => (m.status === 'complete' && m.role === 'assistant') || (m.role === 'user'))
       .map((m: Message) => ({ role: m.role as 'user' | 'assistant', content: m.content || 'No response from assistant' }));
 
-    // Ensure we start with a user turn
+    // Ensure we start and end with a user turn
     if (hist.length && hist[0].role === 'assistant') {
       hist = hist.slice(1);
+    }
+    if(hist.length && hist[hist.length-1].role==='assistant'){
+      hist = hist.slice(0, -1); // Remove the last message
     }
 
     console.log('[DEBUG] Formatted history for Claude:', JSON.stringify(hist));

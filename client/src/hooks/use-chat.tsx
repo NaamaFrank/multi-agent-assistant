@@ -320,13 +320,28 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
       let assistantMessage: Message | null = null;
       let agentType = undefined; // Store agent type to apply at the end
 
+
+      // helper: ensure assistant message exists as soon as we get any stream event
+      const ensureAssistantMessage = () => {
+        if (assistantMessage) return;
+        assistantMessage = {
+          messageId: `temp-assistant-${Date.now()}`,
+          conversationId: targetConversationId!,
+          role: 'assistant',
+          content: '',
+          timestamp: new Date().toISOString(),
+          status: 'complete',
+        };
+        dispatch({ type: 'ADD_MESSAGE', payload: assistantMessage });
+        dispatch({ type: 'SET_STREAMING', payload: { isStreaming: true, messageId: assistantMessage.messageId } });
+      };
       try {
         // Stream chat
         for await (const event of streamingService.streamChat(content, targetConversationId)) {
-          // Set streaming state only when we get the first event
-          if (!assistantMessage) {
-            dispatch({ type: 'SET_STREAMING', payload: { isStreaming: true } });
-          }
+            // Create the assistant bubble as soon as *any* meaningful event arrives
+            if (!assistantMessage && (event.chunk || event.meta || event.title)) {
+                ensureAssistantMessage();
+              }
 
           if (event.meta) {
             // Create assistant message when we get meta info
