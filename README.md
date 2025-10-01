@@ -2,16 +2,6 @@
 
 A secure serverless multi-agent assistant built with AWS Lambda, API Gateway, DynamoDB, and Amazon Bedrock.
 
-## 📋 Table of Contents
-
-- [Architecture](#architecture)
-- [Features](#features)
-- [Quick Start](#quick-start)
-- [Deployment](#deployment)
-- [Security](#security)
-- [API Reference](#api-reference)
-- [Development](#development)
-
 ## 🏗️ Architecture
 
 ```
@@ -191,17 +181,6 @@ data: {"usage":{"inputTokens":10,"outputTokens":15},"durationMs":1200}
 - `agent-stream.ts` - Real-time streaming
 ```
 
-### Build Commands
-```bash
-# Build TypeScript
-npm run build
-
-# Build Lambda functions
-npm run build:lambda
-
-# Deploy infrastructure
-cd ../infra && npx cdk deploy
-```
 
 ## 🗄️ Database Schema
 
@@ -225,9 +204,6 @@ Sort Key: messageId (string)
 Attributes: ts, role, content, status
 GSI: conversationId-ts-index (for timestamp sorting)
 ```
-
-
-**Status: ✅ Production Ready**
 
 ## 👩‍💻 For Code Reviewers
 
