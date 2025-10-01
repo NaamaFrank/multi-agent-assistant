@@ -1,14 +1,15 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import type { AuthState, LoginCredentials, RegisterCredentials } from '@/types';
-import { apiService } from '@/lib/api-service';
+import { apiService } from '@/services';
 import { STORAGE_KEYS } from '@/config';
 import { useToast } from './use-toast';
+import { authTokenService } from '@/lib/auth-token';
 
 interface AuthContextType extends AuthState {
   login: (credentials: LoginCredentials) => Promise<void>;
   register: (credentials: RegisterCredentials) => Promise<void>;
   logout: () => void;
-  refreshAuth: () => Promise<void>;
+  refreshAuth: () => Promise<boolean>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -27,6 +28,63 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     initializeAuth();
   }, []);
+  
+  // Listen for unauthorized events (401 errors)
+  useEffect(() => {
+    const handleUnauthorized = async () => {
+      // Only try to refresh if we're authenticated
+      if (state.isAuthenticated) {
+        console.log('Unauthorized request detected, attempting token refresh');
+        const success = await refreshToken();
+        
+        // If refresh failed, log the user out
+        if (!success) {
+          console.log('Token refresh failed, logging out');
+          logout();
+        }
+      }
+    };
+    
+    window.addEventListener('auth:unauthorized', handleUnauthorized);
+    
+    return () => {
+      window.removeEventListener('auth:unauthorized', handleUnauthorized);
+    };
+  }, [state.isAuthenticated]);
+
+  const refreshToken = async (): Promise<boolean> => {
+    try {
+      const currentToken = localStorage.getItem(STORAGE_KEYS.JWT_TOKEN);
+      if (!currentToken) {
+        return false;
+      }
+      
+      const response = await apiService.refreshToken({ token: currentToken });
+      
+      if (response.success && response.data) {
+        const { token, user } = response.data;
+        
+        // Store auth data
+        localStorage.setItem(STORAGE_KEYS.JWT_TOKEN, token);
+        localStorage.setItem(STORAGE_KEYS.USER_DATA, JSON.stringify(user));
+        
+        // Update state with new token
+        setState(prevState => ({
+          ...prevState,
+          token,
+          user,
+          isAuthenticated: true
+        }));
+        
+        return true;
+      }
+      
+      return false;
+    } catch (error) {
+      console.error('Token refresh failed:', error);
+      return false;
+    }
+  };
 
   const initializeAuth = async () => {
     try {
@@ -38,7 +96,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return;
       }
 
-      // Parse stored user data (following client-v1 pattern)
+      // Validate token and refresh if needed
+      if (!authTokenService.isTokenValid()) {
+        const success = await refreshToken();
+        
+        if (!success) {
+          throw new Error('Token refresh failed');
+        }
+      }
+
+      // Parse stored user data
       const user = JSON.parse(userData);
       setState({
         user,
@@ -153,9 +220,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const logout = () => {
+    // Clear localStorage
     localStorage.removeItem(STORAGE_KEYS.JWT_TOKEN);
     localStorage.removeItem(STORAGE_KEYS.USER_DATA);
     
+    // Update state
     setState({
       user: null,
       token: null,
@@ -171,7 +240,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const refreshAuth = async () => {
-    await initializeAuth();
+    // Check if token is valid, refresh if needed
+    if (!authTokenService.isTokenValid()) {
+      return await refreshToken();
+    }
+    return true;
   };
 
   const contextValue: AuthContextType = {

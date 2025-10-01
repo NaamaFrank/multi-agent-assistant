@@ -12,6 +12,7 @@ dotenv.config();
 export interface IAuthService {
   register(email: string, password: string, firstName: string, lastName: string): Promise<AuthResult>;
   login(email: string, password: string): Promise<AuthResult>;
+  refreshToken(userId: number): Promise<string>;
   getUserById(userId: number): Promise<UserWithoutPassword>;
   verifyToken(token: string): Promise<JwtPayload>;
   clearUsers(): void; // For testing
@@ -36,6 +37,10 @@ export class AuthService implements IAuthService {
       config.jwtSecret,
       { expiresIn: config.jwtExpiresIn } as jwt.SignOptions
     );
+  }
+  
+  async refreshToken(userId: number): Promise<string> {
+    return this.generateToken(userId);
   }
 
   async verifyToken(token: string): Promise<JwtPayload> {

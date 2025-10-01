@@ -77,22 +77,29 @@ export class StreamingService {
                 const payload = JSON.parse(json);
                 const evt: StreamEvent = {};
 
-                if (eventName === 'meta') {
-                  evt.meta = payload;
-                } else if (eventName === 'chunk') {
-                  evt.chunk = payload;
-                } else if (eventName === 'title') {
-                  evt.title = payload;
-                } else if (eventName === 'tool_use' || eventName === 'tool') {
-                  // Handle both 'tool_use' and 'tool' event names for backward compatibility
-                  evt.tool_use = payload;
-                } else if (eventName === 'done') {
-                  evt.done = payload;
-                } else if (eventName === 'error') {
-                  // Server may send { error: "..." } or { message: "..." }
-                  const message =
-                    (payload && (payload.message || payload.error)) || 'Unknown error';
-                  evt.error = { message };
+                switch (eventName) {
+                  case 'meta':
+                    evt.meta = payload;
+                    break;
+                  case 'chunk':
+                    evt.chunk = payload;
+                    break;
+                  case 'title':
+                    evt.title = payload;
+                    break;
+                  case 'tool_use':
+                  case 'tool':
+                    evt.tool_use = payload;
+                    break;
+                  case 'done':
+                    evt.done = payload || true;
+                    break;
+                  case 'error': {
+                    const message =
+                      (payload && (payload.message || payload.error)) || 'Unknown error';
+                    evt.error = { message };
+                    break;
+                  }
                 }
 
                 // Only yield recognized events

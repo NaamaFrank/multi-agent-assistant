@@ -4,8 +4,8 @@ import type {
   Message, 
   Conversation
 } from '@/types';
-import { apiService } from '@/lib/api-service';
-import { streamingService } from '@/lib/streaming-service';
+import { apiService } from '@/services';
+import { streamingService } from '@/services/streaming-service';
 import { useAuth } from './use-auth';
 import { useToast } from './use-toast';
 

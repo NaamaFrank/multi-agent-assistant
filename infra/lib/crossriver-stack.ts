@@ -206,6 +206,17 @@ export class CrossRiverStack extends cdk.Stack {
       layers: [sharedLayer],
       timeout: cdk.Duration.seconds(30),
     });
+    
+    const authTokenRefreshFunction = new lambda.Function(this, 'AuthTokenRefreshFunction', {
+      runtime: lambda.Runtime.NODEJS_20_X,
+      handler: 'auth-token-refresh.handler',
+      code: lambda.Code.fromAsset(path.join(__dirname, '../../server/dist/lambda')),
+      role: lambdaRole,
+      environment: lambdaEnvironment,
+      layers: [sharedLayer],
+      timeout: cdk.Duration.seconds(30),
+      description: 'Handle token refresh requests',
+    });
 
     // Agent Lambda Functions
     const agentConversationsFunction = new lambda.Function(this, 'AgentConversationsFunction', {
@@ -305,6 +316,7 @@ export class CrossRiverStack extends cdk.Stack {
     // Lambda integrations
     const authRegisterIntegration = new integrations.HttpLambdaIntegration('AuthRegisterIntegration', authRegisterFunction);
     const authLoginIntegration = new integrations.HttpLambdaIntegration('AuthLoginIntegration', authLoginFunction);
+    const authTokenRefreshIntegration = new integrations.HttpLambdaIntegration('AuthTokenRefreshIntegration', authTokenRefreshFunction);
     const agentConversationsIntegration = new integrations.HttpLambdaIntegration('AgentConversationsIntegration', agentConversationsFunction);
     const agentConversationByIdIntegration = new integrations.HttpLambdaIntegration('AgentConversationByIdIntegration', agentConversationByIdFunction);
     const agentMessagesIntegration = new integrations.HttpLambdaIntegration('AgentMessagesIntegration', agentMessagesFunction);
@@ -322,6 +334,12 @@ export class CrossRiverStack extends cdk.Stack {
       path: '/api/auth/login',
       methods: [apigateway.HttpMethod.POST],
       integration: authLoginIntegration,
+    });
+    
+    this.httpApi.addRoutes({
+      path: '/api/auth/refresh-token',
+      methods: [apigateway.HttpMethod.POST],
+      integration: authTokenRefreshIntegration,
     });
 
     this.httpApi.addRoutes({

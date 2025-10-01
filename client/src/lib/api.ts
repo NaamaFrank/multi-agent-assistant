@@ -2,6 +2,10 @@ import axios, { type AxiosInstance, type AxiosResponse } from 'axios';
 import type { ApiResponse } from '@/types';
 import { apiConfig, STORAGE_KEYS } from '@/config';
 
+/**
+ * Core API client for making HTTP requests
+ * Handles authentication headers
+ */
 class ApiClient {
   private client: AxiosInstance;
 
@@ -29,16 +33,14 @@ class ApiClient {
       },
       (error) => Promise.reject(error)
     );
-
-    // Response interceptor for error handling
+    
+    // Response interceptor for handling 401 errors
     this.client.interceptors.response.use(
       (response) => response,
       (error) => {
-        if (error.response?.status === 401) {
-          // Clear invalid token
-          localStorage.removeItem(STORAGE_KEYS.JWT_TOKEN);
-          // Optionally trigger logout
-          window.dispatchEvent(new CustomEvent('auth:logout'));
+        if (error.response?.status === 401 && !error.config.url?.includes('/auth/refresh')) {
+          // Dispatch an event that auth components can listen for
+          window.dispatchEvent(new CustomEvent('auth:unauthorized'));
         }
         return Promise.reject(error);
       }
@@ -66,4 +68,5 @@ class ApiClient {
   }
 }
 
+// Export singleton instance
 export const apiClient = new ApiClient();
