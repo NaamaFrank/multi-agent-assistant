@@ -42,17 +42,6 @@ A secure serverless multi-agent assistant built with AWS Lambda, API Gateway, Dy
 - **DynamoDB** - NoSQL database with on-demand scaling
 - **Amazon Bedrock** - AI service (Claude 3.5 Haiku)
 - **AWS Secrets Manager** - Secure JWT secret management
-- **Systems Manager Parameter Store** - Configuration management
-
-## ✨ Features
-
-- ✅ **Pure Lambda Architecture** - No Express server overhead
-- ✅ **Secure JWT Authentication** - AWS Secrets Manager integration
-- ✅ **Real-time Streaming** - Server-Sent Events for AI responses
-- ✅ **Multi-Agent Support** - Extensible agent framework
-- ✅ **Conversation Memory** - Persistent chat history
-- ✅ **Auto-scaling** - Serverless with DynamoDB on-demand
-- ✅ **Security Best Practices** - IAM least privilege, encrypted secrets
 
 ## 🚀 Quick Start
 
@@ -81,8 +70,10 @@ npm run build:lambda
 ```bash
 cd ../client
 npm install
-npm start
+npm run dev
 ```
+
+The frontend will be available at http://localhost:3000.
 
 ## 🚀 Deployment
 
@@ -99,33 +90,6 @@ cd ../server && npm run build:lambda
 cd ../infra && npx cdk deploy
 ```
 
-### Environment Variables (Lambda)
-CDK automatically configures these environment variables for Lambda functions:
-```env
-JWT_SECRET_ARN=arn:aws:secretsmanager:region:account:secret:name
-USERS_TABLE=crossriver-prod-users
-CONVERSATIONS_TABLE=crossriver-prod-conversations
-MESSAGES_TABLE=crossriver-prod-messages
-BEDROCK_REGION=us-east-1
-MODEL_ID_PARAM=/crossriver/prod/model-id
-```
-
-### Cost Estimation
-Estimated monthly cost for moderate usage (10K requests, 1M tokens):
-- Lambda: ~$5
-- DynamoDB: ~$10  
-- Bedrock: ~$15
-- API Gateway: ~$3
-- **Total: ~$33/month**
-
-## 🔐 Security
-
-### JWT Secret Management
-- **AWS Secrets Manager** stores auto-generated 64-character JWT secrets
-- **No hardcoded secrets** anywhere in the codebase
-- **Automatic secret rotation** ready
-- **Environment isolation** - different secrets per environment
-
 ### Security Implementation
 ```typescript
 // CDK automatically creates secure JWT secret
@@ -138,12 +102,6 @@ const jwtSecret = new secretsmanager.Secret(this, 'JwtSecret', {
   },
 });
 ```
-
-### IAM Permissions (Least Privilege)
-- **DynamoDB** - Only access to specific tables
-- **Bedrock** - Only Claude model access
-- **Secrets Manager** - Only JWT secret access
-- **SSM** - Only configuration parameters
 
 ## 📡 API Reference
 
@@ -164,6 +122,10 @@ POST /api/auth/login
   "email": "user@example.com",
   "password": "password123"
 }
+
+# Refresh Token
+POST /api/auth/refresh
+Authorization: Bearer <token>
 ```
 
 ### Conversations
@@ -214,6 +176,7 @@ data: {"usage":{"inputTokens":10,"outputTokens":15},"durationMs":1200}
 │   │   ├── services/ - Business logic
 │   │   ├── repositories/ - Data access
 │   │   ├── adapters/ - LLM adapters
+│   │   ├── tools/    - Agent tools (CodeRunner, WebSearch)
 │   │   ├── types/    - TypeScript types
 │   │   └── utils/    - Utilities
 │   └── scripts/      - Build scripts
@@ -226,18 +189,6 @@ data: {"usage":{"inputTokens":10,"outputTokens":15},"durationMs":1200}
 - `agent-conversations.ts` - Conversation management
 - `agent-messages.ts` - Message operations
 - `agent-stream.ts` - Real-time streaming
-
-### Local Testing
-```bash
-# Test Lambda functions directly
-cd server
-node test-lambdas.js
-
-# Test streaming
-node test-streaming.js
-
-# Run unit tests
-npm test
 ```
 
 ### Build Commands
@@ -275,44 +226,25 @@ Attributes: ts, role, content, status
 GSI: conversationId-ts-index (for timestamp sorting)
 ```
 
-## 🔍 Monitoring
-
-### CloudWatch Metrics
-- Lambda function duration, errors, throttles
-- DynamoDB read/write capacity and throttling
-- API Gateway request count, latency, errors
-
-### Logging
-- Structured logging with request IDs
-- No PII in logs
-- Error stack traces (non-production)
-
-## 🛠️ Troubleshooting
-
-### Common Issues
-
-**Lambda Cold Starts**
-- Symptom: First request slow (>3s)
-- Solution: Consider provisioned concurrency for production
-
-**JWT Token Issues**
-- Symptom: 401 Unauthorized  
-- Solution: Check AWS Secrets Manager secret for JWT configuration
-
-**CORS Errors**
-- Symptom: Browser blocks requests
-- Solution: Update CORS origins in CDK stack
-
-**Bedrock Access Denied**
-- Symptom: 403 Forbidden from Bedrock
-- Solution: Enable model access in AWS Console > Bedrock > Model Access
-
-## 📝 License
-
-This project is private and proprietary.
-
----
 
 **Status: ✅ Production Ready**
 
-The CrossRiver Multi-Agent Assistant is a secure, scalable, serverless application ready for production deployment with enterprise-grade security practices.
+## 👩‍💻 For Code Reviewers
+
+### Running the Frontend Only
+
+To review all the functionality of the application, you only need to run the frontend - no backend setup required:
+
+```bash
+# Navigate to the client directory
+cd client
+
+# Install dependencies
+npm install
+
+# Start the development server
+npm run dev
+```
+
+The frontend will be accessible at http://localhost:3000. The UI is already configured to call production APIs, so all functionality will work without a local backend.
+

@@ -33,12 +33,7 @@ export function ChatWindow({ conversation, className }: ChatWindowProps) {
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
-  
-  // Debug tool usage state
-  useEffect(() => {
-    console.log('Current toolInUse state:', toolInUse);
-  }, [toolInUse]);
-  
+
   // Reset toolInUse when streaming stops
   useEffect(() => {
     if (!isStreaming && toolInUse) {
