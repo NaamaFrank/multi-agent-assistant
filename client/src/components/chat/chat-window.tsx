@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Send, StopCircle, User, Bot } from 'lucide-react';
-import type { Conversation, AgentType } from '@/types';
+import { Send, User, Bot } from 'lucide-react';
+import type { Conversation } from '@/types';
+import { agentColors, agentNames } from '@/types';
 import { useChat } from '@/hooks/use-chat';
 import { LoadingSpinner } from '@/components/ui/loading-spinner';
 import { MarkdownRenderer } from '@/components/ui/markdown-renderer';
@@ -12,19 +13,6 @@ interface ChatWindowProps {
   className?: string;
 }
 
-const agentColors: Record<AgentType, string> = {
-  general: 'bg-primary/20 text-primary border border-primary/30',
-  coding: 'bg-accent/20 text-accent border border-accent/30',
-  security: 'bg-red-500/20 text-red-400 border border-red-500/30',
-  travel: 'bg-violet-500/20 text-violet-400 border border-violet-500/30',
-};
-
-const agentNames: Record<AgentType, string> = {
-  general: 'General Assistant',
-  coding: 'Coding Expert',
-  security: 'Security Advisor',
-  travel: 'Travel Guide',
-};
 
 export function ChatWindow({ conversation, className }: ChatWindowProps) {
   const { 

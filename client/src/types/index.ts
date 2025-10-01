@@ -58,6 +58,20 @@ export interface CreateMessageRequest {
 export type AgentType = 'general' | 'coding' | 'security' | 'travel';
 export type MessageStatus = 'complete' | 'interrupted' | 'error';
 
+export const agentColors: Record<AgentType, string> = {
+  general: 'bg-blue-500/20 text-blue-400 border border-blue-500/30',
+  coding: 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30',
+  security: 'bg-red-500/20 text-red-400 border border-red-500/30',
+  travel: 'bg-violet-500/20 text-violet-400 border border-violet-500/30',
+};
+
+export const agentNames: Record<AgentType, string> = {
+  general: 'General Assistant',
+  coding: 'Coding Expert',
+  security: 'Security Advisor',
+  travel: 'Travel Guide',
+};
+
 // Streaming types
 export interface StreamEvent {
   meta?: {
