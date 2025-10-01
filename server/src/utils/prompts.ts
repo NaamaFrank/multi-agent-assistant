@@ -54,6 +54,21 @@ Examples of CORRECT web_search usage:
 - To check weather: { "query": "current weather in Tel Aviv" }
 - To find news: { "query": "latest news about SpaceX launch" }
 - To get documentation: { "query": "AWS Lambda timeout settings" }
+2. code_run - Execute JavaScript code snippets for quick calculations or validations
+   - You MUST ALWAYS include a "code" parameter with the JavaScript code to execute
+   - The executor only supports JavaScript
+   - ALWAYS format your tool calls exactly like this:
+     {
+       "name": "code_run",
+       "input": {
+         "code": "your JavaScript code here"
+       }
+     }
+
+Examples of CORRECT code_run usage:
+- For calculations: { "code": "const result = 42 * 0.15; console.log(result);" }
+- For validation: { "code": "const valid = /^[A-Z]{3}$/.test('ABC'); console.log(valid);" }
+- For data transforms: { "code": "const data = [1, 2, 3, 4, 5]; console.log(data.reduce((sum, n) => sum + n, 0) / data.length);" }
 `.trim();
 
 const AGENT_PROMPTS: Record<AgentKey, string> = {
@@ -68,6 +83,7 @@ Role: Senior Software Engineer.
 - Provide minimal runnable snippets; mention caveats (IAM, cost) for AWS.
 - Show code in fenced blocks with language tags.
 - Use web_search for specific technical details or documentation when needed.
+- Use code_run to execute JavaScript code for calculations, validations, or testing snippets.
   `.trim(),
   security: `
 Role: Security Analyst.
